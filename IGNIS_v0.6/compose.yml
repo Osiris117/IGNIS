@@ -1,0 +1,15 @@
+services:
+  ignis:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      FIRMS_MAP_KEY: "${FIRMS_MAP_KEY:-}"
+      FIRMS_SOURCE: "${FIRMS_SOURCE:-VIIRS_NOAA21_NRT}"
+      IGNIS_CACHE_TTL: "${IGNIS_CACHE_TTL:-60}"
+      IGNIS_EVENT_RADIUS_KM: "${IGNIS_EVENT_RADIUS_KM:-28}"
+      IGNIS_EVENT_WINDOW_HOURS: "${IGNIS_EVENT_WINDOW_HOURS:-36}"
+      IGNIS_EVENT_MIN_POINTS: "${IGNIS_EVENT_MIN_POINTS:-2}"
+    volumes:
+      - ./data/archive:/app/data/archive
+    restart: unless-stopped

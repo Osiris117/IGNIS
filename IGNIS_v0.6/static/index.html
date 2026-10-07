@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IGNIS — Earth Fire Intelligence</title>
+  <link href="https://cdn.jsdelivr.net/npm/cesium@1.126/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="cesiumContainer"></div>
+    <div class="vignette"></div>
+    <div class="scanline"></div>
+
+    <header class="topbar glass">
+      <div class="brand">
+        <div class="brand-mark"><span></span></div>
+        <div>
+          <div class="eyebrow">EARTH FIRE INTELLIGENCE</div>
+          <div class="brand-name">IGNIS <span>// EARTH CONTEXT ENGINE</span></div>
+        </div>
+      </div>
+      <div class="top-metrics">
+        <div class="metric"><span>FEED</span><strong id="feedMode">DEMO</strong></div>
+        <div class="metric"><span>SENSORS</span><strong id="sensorName">SIMULATED</strong></div>
+        <div class="metric"><span>REGION</span><strong id="regionName">MEXICO</strong></div>
+        <div class="metric"><span>ARCHIVE</span><strong id="archiveTop">EMPTY</strong></div>
+        <div class="metric"><span>EVENTS</span><strong id="eventTop">0</strong></div>
+        <div class="metric"><span>STATUS</span><strong class="ok" id="systemStatus">ONLINE</strong></div>
+        <div class="clock" id="clock">--:--:-- UTC</div>
+      </div>
+    </header>
+
+    <aside class="left-panel glass scroll-panel">
+      <div class="section-title"><span>01</span> INTELLIGENCE MODE</div>
+      <div class="segmented" id="viewMode">
+        <button class="seg active" data-mode="hotspots">HOTSPOTS</button>
+        <button class="seg" data-mode="heat">FUSION GRID</button>
+        <button class="seg" data-mode="events">FIRE EVENTS</button>
+      </div>
+      <button class="primary" id="btnHarmonizedDemo"><i></i> LOAD ANALYTICAL DEMO</button>
+      <button class="secondary" id="btnHarmonize"><i></i> NASA · HARMONIZE REGION</button>
+      <button class="secondary calendar-launch" id="btnCalendar"><i></i> BURNING ACTIVITY CALENDAR</button>
+      <button class="secondary archive-launch" id="btnArchive"><i></i> LOCAL ARCHIVE MANAGER</button>
+      <button class="secondary" id="btnExport"><i></i> EXPORT INTELLIGENCE SNAPSHOT</button>
+
+      <div class="divider"></div>
+      <div class="section-title"><span>02</span> AREA OF INTEREST</div>
+      <label class="field-label" for="regionPreset">REGION PRESET</label>
+      <select id="regionPreset">
+        <option value="mexico">Mexico</option>
+        <option value="amazon">Amazon Basin</option>
+        <option value="california">California</option>
+        <option value="med">Mediterranean</option>
+        <option value="australia">Australia</option>
+        <option value="viewport">Current viewport</option>
+      </select>
+      <button class="tiny full" id="btnFlyRegion">FLY TO REGION</button>
+
+      <label class="field-label" for="historyDate">TIMELINE START DATE</label>
+      <input id="historyDate" type="date" />
+      <label class="field-label" for="historyDays">WINDOW</label>
+      <select id="historyDays">
+        <option value="1">1 DAY</option>
+        <option value="3">3 DAYS</option>
+        <option value="5" selected>5 DAYS</option>
+      </select>
+      <div class="microcopy">Historical requests use FIRMS Standard Processing sources. Calendar cells can drive this date automatically. Event mode clusters nearby thermal anomalies; it does not create official incident perimeters.</div>
+
+      <div class="divider"></div>
+      <div class="section-title"><span>03</span> SENSOR FUSION</div>
+      <label class="toggle-row"><input type="checkbox" id="srcModis" checked><span></span> MODIS Standard</label>
+      <label class="toggle-row"><input type="checkbox" id="srcSnpp"><span></span> VIIRS Suomi-NPP <em>legacy</em></label>
+      <label class="toggle-row"><input type="checkbox" id="srcN20" checked><span></span> VIIRS NOAA-20</label>
+      <label class="field-label" for="gridSize">COMMON GRID</label>
+      <select id="gridSize">
+        <option value="0.06">~6 km · fine</option>
+        <option value="0.10" selected>~11 km · balanced</option>
+        <option value="0.20">~22 km · regional</option>
+      </select>
+
+      <div class="divider"></div>
+      <div class="section-title"><span>04</span> HOTSPOT FILTERS</div>
+      <label class="toggle-row"><input type="checkbox" id="moderate" checked><span></span> Moderate</label>
+      <label class="toggle-row"><input type="checkbox" id="high" checked><span></span> High</label>
+      <label class="toggle-row"><input type="checkbox" id="critical" checked><span></span> Critical</label>
+    </aside>
+
+    <aside class="right-panel glass scroll-panel">
+      <div class="section-title"><span>NOW</span> BURNING ACTIVITY</div>
+      <div class="big-number" id="fireCount">0</div>
+      <div class="subtext" id="countLabel">VISIBLE DETECTIONS</div>
+
+      <div class="signal-card">
+        <div><span>ACTIVITY INDEX</span><strong id="activityIndex">—</strong></div>
+        <div class="meter"><span id="activityMeter"></span></div>
+        <small>Sensor-balanced score for the selected frame.</small>
+      </div>
+
+      <div class="risk-row"><span>MODIS</span><strong id="modisCount">0</strong></div>
+      <div class="risk-row"><span>VIIRS</span><strong id="viirsCount">0</strong></div>
+      <div class="risk-row"><span>AGREEMENT CELLS</span><strong id="agreementCount">0</strong></div>
+
+      <div class="divider"></div>
+      <div class="section-title"><span>Δ</span> HISTORICAL ANOMALY</div>
+      <button class="secondary compact" id="btnBaseline">COMPARE WITH PRIOR YEARS</button>
+      <div class="anomaly-card" id="anomalyCard">
+        <div class="anomaly-value" id="anomalyValue">—</div>
+        <div>
+          <strong id="anomalyLabel">NO BASELINE</strong>
+          <small id="anomalyNote">Uses a MODIS historical anchor for consistency.</small>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-title"><span>CAL</span> SELECTED PERIOD</div>
+      <div class="period-card">
+        <strong id="selectedPeriod">NONE</strong>
+        <span id="selectedPeriodScore">Open the Burning Activity Calendar</span>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-title"><span>DB</span> LOCAL ARCHIVE</div>
+      <div class="archive-mini">
+        <strong id="archiveCount">0</strong><span>OBSERVATIONS</span>
+        <small id="archiveCoverage">No historical files imported</small>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-title"><span>EVT</span> CANDIDATE FIRE EVENTS</div>
+      <div class="event-list" id="eventList"><div class="source-empty">Load a multi-day dataset to build candidate events.</div></div>
+
+      <div class="divider"></div>
+      <div class="section-title"><span>CTX</span> ENVIRONMENTAL CONTEXT</div>
+      <div class="context-card" id="contextCard">
+        <div class="context-placeholder" id="contextPlaceholder">SELECT A FIRE EVENT<br><small>Weather, dryness and recent air-quality context will appear here.</small></div>
+        <div class="hidden" id="contextContent">
+          <div class="context-score"><span>DRYNESS CONTEXT</span><strong id="drynessScore">—</strong><em id="drynessLabel">—</em></div>
+          <div class="context-grid">
+            <div><span>TEMP MAX</span><strong id="ctxTemp">—</strong></div>
+            <div><span>RH MIN</span><strong id="ctxHumidity">—</strong></div>
+            <div><span>WIND MAX</span><strong id="ctxWind">—</strong></div>
+            <div><span>RAIN</span><strong id="ctxRain">—</strong></div>
+            <div><span>SOIL MOIST.</span><strong id="ctxSoil">—</strong></div>
+            <div><span>PM2.5</span><strong id="ctxPm25">—</strong></div>
+            <div><span>AOD</span><strong id="ctxAod">—</strong></div>
+            <div><span>WIND DIR</span><strong id="ctxWindDir">—</strong></div>
+          </div>
+          <small class="context-source" id="contextSource">—</small>
+          <small class="context-caveat">Context is analytical only — not an operational fire-danger, smoke-attribution, evacuation or life-safety product.</small>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="detail-empty" id="detailEmpty">SELECT A SIGNAL<br><small>Click a hotspot, fusion cell, or candidate event</small></div>
+      <div class="detail-card hidden" id="detailCard">
+        <div class="detail-kicker" id="detailKicker">HOTSPOT INTELLIGENCE</div>
+        <div class="detail-severity" id="detailSeverity">HIGH</div>
+        <dl>
+          <div><dt>LAT / LON</dt><dd id="detailCoords">—</dd></div>
+          <div><dt>FRP / SCORE</dt><dd id="detailFrp">—</dd></div>
+          <div><dt>CONFIDENCE</dt><dd id="detailConfidence">—</dd></div>
+          <div><dt>ACQUIRED</dt><dd id="detailTime">—</dd></div>
+          <div><dt>SENSOR</dt><dd id="detailSatellite">—</dd></div>
+        </dl>
+      </div>
+    </aside>
+
+    <section class="calendar-panel glass hidden" id="calendarPanel" aria-label="Burning Activity Calendar">
+      <div class="calendar-head">
+        <div>
+          <div class="eyebrow">HISTORICAL PATTERN EXPLORER</div>
+          <h2>BURNING ACTIVITY CALENDAR</h2>
+          <p id="calendarSubtitle">Explore seasonal fire activity through time.</p>
+        </div>
+        <button class="close-btn" id="btnCloseCalendar" aria-label="Close calendar">×</button>
+      </div>
+      <div class="calendar-toolbar">
+        <div class="segmented calendar-mode" id="calendarMode">
+          <button class="seg active" data-calendar-mode="demo">FULL DEMO</button>
+          <button class="seg" data-calendar-mode="archive">LOCAL ARCHIVE</button>
+          <button class="seg" data-calendar-mode="nasa">NASA SAMPLE</button>
+        </div>
+        <div class="calendar-controls">
+          <label>FROM <input id="calendarStartYear" type="number" min="2003" max="2100" /></label>
+          <label>TO <input id="calendarEndYear" type="number" min="2003" max="2100" /></label>
+          <button class="tiny" id="btnLoadCalendar">LOAD</button>
+        </div>
+      </div>
+      <div class="calendar-note" id="calendarNote">Synthetic full-history demo. Not NASA observations.</div>
+      <div class="calendar-scroll">
+        <div class="calendar-grid" id="calendarGrid"></div>
+      </div>
+      <div class="calendar-footer">
+        <div class="legend">
+          <span><i class="cal-swatch low"></i>LOW</span>
+          <span><i class="cal-swatch moderate"></i>MODERATE</span>
+          <span><i class="cal-swatch high"></i>HIGH</span>
+          <span><i class="cal-swatch very-high"></i>VERY HIGH</span>
+          <span><i class="cal-swatch extreme"></i>EXTREME</span>
+        </div>
+        <div class="calendar-action">SELECT A CELL → DATE + REGION → LOAD ON GLOBE</div>
+      </div>
+    </section>
+
+
+    <section class="archive-panel glass hidden" id="archivePanel" aria-label="Local Archive Manager">
+      <div class="archive-head">
+        <div><div class="eyebrow">OFFLINE HISTORICAL DATA ENGINE</div><h2>LOCAL ARCHIVE MANAGER</h2><p>Import FIRMS CSV/TXT/ZIP files into DuckDB and build a Parquet analytical snapshot.</p></div>
+        <button class="close-btn" id="btnCloseArchive" aria-label="Close archive manager">×</button>
+      </div>
+      <div class="archive-stats">
+        <div><span>OBSERVATIONS</span><strong id="archiveManagerCount">0</strong></div>
+        <div><span>FILES</span><strong id="archiveManagerImports">0</strong></div>
+        <div><span>COVERAGE</span><strong id="archiveManagerCoverage">—</strong></div>
+        <div><span>STORE</span><strong>DUCKDB + PARQUET</strong></div>
+      </div>
+      <div class="archive-body">
+        <div class="archive-upload">
+          <div class="section-title"><span>01</span> IMPORT NASA FIRMS ARCHIVE</div>
+          <label class="field-label" for="archiveSource">SENSOR / SOURCE IN FILE</label>
+          <select id="archiveSource">
+            <option value="MODIS_SP">MODIS · Standard Processing</option>
+            <option value="VIIRS_SNPP_SP">VIIRS · Suomi-NPP Standard Processing</option>
+            <option value="VIIRS_NOAA20_SP">VIIRS · NOAA-20 Standard Processing</option>
+            <option value="VIIRS_NOAA21_ARCHIVE">VIIRS · NOAA-21 Archive</option>
+          </select>
+          <label class="file-drop" for="archiveFile"><strong>SELECT FIRMS FILE</strong><span>CSV, TXT or ZIP · kept locally for provenance</span><input id="archiveFile" type="file" accept=".csv,.txt,.zip" /></label>
+          <button class="primary" id="btnImportArchive">IMPORT INTO IGNIS</button>
+          <div class="upload-progress hidden" id="archiveProgress"><span></span><strong>IMPORTING…</strong></div>
+          <p class="archive-help">For very large archives you can also run <code>python import_firms_archive.py FILE --source MODIS_SP</code>.</p>
+        </div>
+        <div class="archive-sources">
+          <div class="section-title"><span>02</span> LOCAL COVERAGE</div>
+          <div id="archiveSourceList" class="source-list"><div class="source-empty">No files imported yet.</div></div>
+          <div class="archive-note">The local calendar uses complete imported observations for each month. It does not spend FIRMS API quota and works offline after import.</div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="timeline glass">
+      <div class="timeline-heading">
+        <span>TEMPORAL INTELLIGENCE</span>
+        <strong id="timelineDate">—</strong>
+      </div>
+      <button class="play-btn" id="btnPrev" title="Previous frame">‹</button>
+      <input id="frameSlider" type="range" min="0" max="0" value="0" step="1" />
+      <button class="play-btn" id="btnNext" title="Next frame">›</button>
+      <button class="play-btn wide" id="btnPlay">PLAY</button>
+      <div class="phase-tag">V0.6 · EARTH CONTEXT ENGINE</div>
+    </footer>
+
+    <div class="method-badge glass">FIRMS · EVENT CLUSTERS · ERA5-LAND · CAMS · DUCKDB · PARQUET</div>
+    <div class="disclaimer-strip glass">THERMAL ANOMALIES ≠ CONFIRMED WILDFIRE · NOT FOR LIFE/PROPERTY SAFETY DECISIONS</div>
+    <div id="toast" class="toast hidden"></div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/cesium@1.126/Build/Cesium/Cesium.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
