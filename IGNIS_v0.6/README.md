@@ -1,6 +1,29 @@
-# IGNIS v0.6 — Earth Fire Intelligence
+# IGNIS v0.8 — Environmental Intelligence
 
-IGNIS is a cross-platform 3D wildfire/thermal-anomaly intelligence prototype built around NASA FIRMS MODIS/VIIRS observations. v0.6 adds the **Earth Context Engine**: candidate fire-event clustering, environmental context, recent aerosol/smoke indicators, and exportable intelligence snapshots while retaining the v0.5 DuckDB + Parquet historical archive.
+IGNIS is a cross-platform 3D wildfire/thermal-anomaly intelligence prototype built around NASA FIRMS MODIS/VIIRS observations. v0.8 adds **Environmental Intelligence**: drought percentiles from ERA5, vegetation/fuel context from MODIS NDVI, smoke/aerosol context (MODIS AOD + OMPS pyro-cumulonimbus) and switchable NASA GIBS layers on the globe that follow the timeline. It builds on v0.7 (Fire Evolution Engine: persistent event IDs, lifecycle states, apparent drift, trails, replayable lifecycles, explainable Event Confidence Score), the v0.6 Earth Context Engine and the v0.5 DuckDB + Parquet archive.
+
+## v0.8 highlights
+
+- **Per-event environmental context**: drought percentile (30/90/180/365 d vs. up to 10 years of ERA5 at the same point) + ET0/precipitation ratio.
+- **Fuel / vegetation**: MODIS Terra NDVI 8-day composite (250 m) read through the official GIBS colormap; classes SPARSE → VERY_HIGH.
+- **Smoke**: AOD classes CLEAN → VERY_HEAVY, plus OMPS pyro-cumulonimbus detections.
+- **Globe layers**: AEROSOLES, VEGETACIÓN, COLOR REAL and PIRO-CB toggles synced with the timeline (NASA GIBS WMTS, no API key).
+- **Graceful degradation**: every layer answers `{"available": false, "reason": ...}` instead of inventing values, and reports `date` vs. `requested_date` when the composite lags behind.
+- Docs: [`docs/ENVIRONMENTAL_INTELLIGENCE.md`](docs/ENVIRONMENTAL_INTELLIGENCE.md) · validation in [`VALIDATION.md`](VALIDATION.md).
+
+## v0.7 highlights
+
+- **Persistent event IDs** (`IGN-YYYY-NNNN`) backed by a local registry (`data/events/track_registry.json`).
+- **Lifecycle classification** with an explicit intensity rule and configurable threshold.
+- **Apparent centroid drift** (bearing + net displacement), clearly labeled as *not* a spread model.
+- **Explainable Event Confidence** with per-component weights and printed evidence.
+- **Globe rendering**: evolution trails with growing alpha, per-state colors, pulsing markers.
+- **REPLAY LIFECYCLE**: cinematic camera replay from first signal to last observation.
+- **God's Eye HUD**: local Cesium SkyBox stars, atmosphere, FXAA + bloom, leader line + animated reticle, tracking banner, cursor lat/lon readout.
+- **Real offline data**: bulk FIRMS CSVs (no MAP_KEY) can be imported and tracked locally (see `docs/OFFLINE_DEMO.md`).
+- New endpoints: `GET /api/evolution/demo`, `GET /api/evolution/archive`.
+
+Docs: `docs/EVOLUTION_ENGINE.md` (methodology + limits), `docs/OFFLINE_DEMO.md` (offline pack + real data).
 
 ## Run
 
@@ -147,6 +170,8 @@ GET  /api/harmonize/demo
 GET  /api/harmonize/demo/date
 GET  /api/harmonize
 GET  /api/events/demo
+GET  /api/evolution/demo
+GET  /api/evolution/archive
 GET  /api/context/environment
 GET  /api/analytics/baseline
 GET  /api/analytics/calendar/demo
@@ -165,7 +190,8 @@ IGNIS_v0.6/
 ├─ backend/
 │  ├─ app.py
 │  ├─ archive_store.py
-│  └─ context_engine.py
+│  ├─ context_engine.py
+│  └─ evolution_engine.py
 ├─ data/
 │  ├─ sample_fires.json
 │  └─ archive/
@@ -173,6 +199,11 @@ IGNIS_v0.6/
 │  ├─ index.html
 │  ├─ styles.css
 │  └─ app.js
+├─ docs/
+│  ├─ EVOLUTION_ENGINE.md
+│  └─ OFFLINE_DEMO.md
+├─ tools/
+│  └─ fetch_firms_snapshot.py
 ├─ EARTH_CONTEXT_ENGINE.md
 ├─ HISTORICAL_ENGINE.md
 ├─ HARMONIZATION.md
@@ -190,10 +221,10 @@ IGNIS_v0.6/
 
 ## Connectivity note
 
-The Python service and imported historical analysis can run locally. The current browser shell still obtains CesiumJS from a CDN and therefore is not yet a fully disconnected UI package. A future offline-hardening step should vendor CesiumJS and use the Natural Earth II imagery shipped with CesiumJS.
+**The browser UI is now fully offline**: CesiumJS 1.126 is vendored in `static/vendor/cesium/` and the globe uses the Natural Earth II imagery + SkyBox shipped with Cesium (no CDN requests). NASA FIRMS and Open-Meteo/CAMS remain backend-only dependencies; with a local archive imported, IGNIS runs disconnected end-to-end. See `docs/OFFLINE_DEMO.md`.
 
 ## Next high-value milestone
 
-v0.7 should add **persistent event identity + event evolution**: track the same candidate event across successive refreshes, visualize growth/decay, estimate movement/spread direction from the observation cloud, and allow a judge/user to replay the event lifecycle from first signal to last observation.
+v0.8 should add **Environmental Intelligence**: vegetation/fuel context, drought indices, smoke/aerosol layers over the globe, and weather-driven risk context per persistent track. v0.9 should add the **IGNIS Intelligence Analyst**: data-grounded automatic narrative per event, with every sentence tied to the underlying numbers.
 
 See `EARTH_CONTEXT_ENGINE.md`, `HISTORICAL_ENGINE.md`, and `HARMONIZATION.md` for methodology and caveats.

@@ -6,6 +6,7 @@ import io
 import json
 import math
 import os
+import random
 import statistics
 import time
 from collections import defaultdict
@@ -16,19 +17,38 @@ from typing import Any, Iterable
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.archive_store import ARCHIVE_SOURCES, INBOX_DIR, archive_store
 from backend.context_engine import build_environment_context, cluster_fire_events
+from backend.environment_engine import LAYERS as ENV_LAYERS, build_environment_intelligence
+from backend.evolution_engine import track_evolution
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = ROOT / "static"
 DATA_DIR = ROOT / "data"
 load_dotenv(ROOT / ".env")
 
-APP_VERSION = "0.6.0"
+APP_VERSION = "0.8.0"
 app = FastAPI(title="IGNIS — Earth Fire Intelligence", version=APP_VERSION)
+
+# El preview del workspace (y cualquier iframe con sandbox="allow-scripts") expone
+# el documento con ORIGEN OPACO ("null"): toda petición —incluido el propio
+# /static— se vuelve cross-origin. Sin estos encabezados Cesium no puede cargar
+# basemap, SkyBox, workers ni /api/*. IGNIS es una herramienta local sin cookies
+# ni credenciales, así que permitir cualquier origen no expone nada.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_origin_regex=".*",
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 SOURCES = {
@@ -1118,4 +1138,215 @@ def events_demo() -> JSONResponse:
         "mode": "demo-candidate-events",
         "events": candidate_events(rows),
         "caveat": "Synthetic demo clusters; not NASA observations and not official incidents.",
+    })
+
+
+# --------------------------------------------------------------------------- #
+# v0.7 — Fire Evolution Engine
+# --------------------------------------------------------------------------- #
+# Synthetic, deterministic demo scenario. Each seed narrates a full lifecycle:
+# EMERGING -> EXPANDING -> peak -> DECLINING (plus one EXTINCT stream) so the
+# evolution engine can be explored without a FIRMS MAP_KEY and without internet.
+EVOLUTION_SCENARIOS: dict[str, dict[str, Any]] = {
+    "mexico": {
+        "label": "Mexico · multi-region synthetic evolution scenario",
+        "camera": (-101.5, 20.5, 4200000),
+        "seeds": [
+            {"name": "Sierra Norte de Puebla", "lat": 19.92, "lon": -97.98,
+             "detections": [3, 8, 17, 24, 9], "frp": (28, 96), "drift": (0.12, -0.185),
+             "spread_km": (5, 34), "families": ("MODIS", "VIIRS")},
+            {"name": "Durango highlands", "lat": 25.12, "lon": -105.12,
+             "detections": [4, 4, 5, 4, 4], "frp": (22, 61), "drift": (0.018, 0.026),
+             "spread_km": (7, 14), "families": ("MODIS",)},
+            {"name": "Chiapas frontier", "lat": 16.35, "lon": -92.55,
+             "detections": [0, 0, 6, 14, 21], "frp": (34, 128), "drift": (0.095, -0.068),
+             "spread_km": (4, 30), "families": ("VIIRS",)},
+            {"name": "Yucatan grassland pulse", "lat": 20.42, "lon": -88.94,
+             "detections": [5, 3, 2, 1, 0], "frp": (18, 44), "drift": (-0.035, 0.020),
+             "spread_km": (6, 12), "families": ("VIIRS", "MODIS")},
+        ],
+    },
+    "amazon": {
+        "label": "Amazon Basin · synthetic evolution scenario",
+        "camera": (-60.5, -7.5, 4600000),
+        "seeds": [
+            {"name": "Mato Grosso arc", "lat": -11.4, "lon": -55.7,
+             "detections": [5, 12, 26, 31, 14], "frp": (40, 180), "drift": (-0.10, 0.155),
+             "spread_km": (6, 40), "families": ("MODIS", "VIIRS")},
+            {"name": "Pará deforestation front", "lat": -6.9, "lon": -52.4,
+             "detections": [2, 5, 11, 18, 23], "frp": (35, 140), "drift": (0.085, -0.12),
+             "spread_km": (5, 32), "families": ("VIIRS", "MODIS")},
+            {"name": "Cerrado savanna", "lat": -14.8, "lon": -47.6,
+             "detections": [6, 5, 4, 3, 2], "frp": (20, 70), "drift": (0.045, 0.062),
+             "spread_km": (6, 16), "families": ("MODIS",)},
+        ],
+    },
+}
+
+
+def _evolution_demo_frames(region: str = "mexico", days: int = 5) -> list[dict[str, Any]]:
+    scenario = EVOLUTION_SCENARIOS.get(region) or EVOLUTION_SCENARIOS["mexico"]
+    today = date.today()
+    frames: list[dict[str, Any]] = []
+    for offset in range(days):
+        frame_date = (today - timedelta(days=days - 1 - offset)).isoformat()
+        rng = random.Random(f"ignis-evolution-{region}-{offset}")
+        fires: list[dict[str, Any]] = []
+        for seed in scenario["seeds"]:
+            count = int(seed["detections"][min(offset, len(seed["detections"]) - 1)]) if offset < len(seed["detections"]) else 0
+            if count <= 0:
+                continue
+            lat0 = float(seed["lat"]) + float(seed["drift"][0]) * offset
+            lon0 = float(seed["lon"]) + float(seed["drift"][1]) * offset
+            spread_min, spread_max = seed["spread_km"]
+            spread = min(spread_max, spread_min + (spread_max - spread_min) * (count / max(1, max(seed["detections"]))))
+            frp_lo, frp_hi = seed["frp"]
+            for k in range(count):
+                lat = lat0 + rng.uniform(-1, 1) * spread / 111.0
+                lon = lon0 + rng.uniform(-1, 1) * spread / (111.0 * max(0.2, math.cos(math.radians(lat0))))
+                frp = round(rng.uniform(frp_lo, frp_hi) * (0.55 + 0.9 * (count / max(1, max(seed["detections"])))), 1)
+                if "VIIRS" in seed["families"] and (k % 2 == 0):
+                    source, instrument, sat = "VIIRS_NOAA20_SP", "VIIRS", "NOAA-20"
+                    conf_raw, conf = "n" if frp < frp_hi * 0.7 else "h", None
+                else:
+                    source, instrument, sat = "MODIS_SP", "MODIS", "Terra"
+                    conf_raw, conf = ("h" if frp > frp_hi * 0.5 else "n"), None
+                confidence = normalize_confidence(conf_raw)
+                severity_score = min(100.0, max(0.0, 0.60 * min(frp / 120.0, 1.0) * 100 + 0.40 * confidence))
+                severity = "critical" if severity_score >= 72 else "high" if severity_score >= 45 else "moderate"
+                fires.append({
+                    "lat": round(lat, 6), "lon": round(lon, 6), "frp": frp,
+                    "brightness": round(300 + frp * 0.35, 2), "confidence": confidence,
+                    "confidence_raw": conf_raw, "date": frame_date,
+                    "time": f"{rng.randint(1, 23):02d}{rng.choice(['00', '12', '24', '36', '48'])}",
+                    "satellite": sat, "instrument": instrument,
+                    "daynight": rng.choice(["D", "N"]), "source": source,
+                    "family": sensor_family(source, instrument),
+                    "severity": severity, "severity_score": round(severity_score, 1),
+                    "seed": seed["name"],
+                })
+        cells, summary = harmonize_day(fires, 0.10)
+        frames.append({"date": frame_date, "fires": fires, "cells": cells, "summary": summary})
+    return frames
+
+
+def _evolution_from_frames(frames: list[dict[str, Any]], session: str, min_points: int = 2) -> dict[str, Any]:
+    per_frame = [{"date": f["date"], "events": candidate_events(f.get("fires", []))} for f in frames]
+    engine = track_evolution(per_frame, session=session)
+    # Deriva los indicadores de panel desde los eventos cuando el frame no trae summary
+    # (p. ej. frames construidos desde el archivo local).
+    for frame, built in zip(frames, per_frame):
+        events = built["events"]
+        if not frame.get("summary"):
+            scores = [float(e.get("event_score") or 0.0) for e in events]
+            frame["summary"] = {
+                "activity_mean": round(sum(scores) / len(scores), 1) if scores else 0.0,
+                "agreement_cells": sum(1 for e in events if len(e.get("families") or []) >= 2),
+                "cells": len(events),
+                "method": "Derived from candidate events (archive frames carry no harmonization grid).",
+            }
+        frame["events"] = events
+    engine["per_frame"] = [
+        {"date": f["date"], "events": f["events"], "count": len(f["events"])} for f in per_frame
+    ]
+    return engine
+
+
+# --------------------------------------------------------------------------- #
+# v0.8 — Environmental Intelligence
+# --------------------------------------------------------------------------- #
+@app.get("/api/environment/catalog")
+def environment_catalog() -> JSONResponse:
+    """Capas GIBS verificadas (con su TileMatrixSet correcto) para la UI."""
+    return JSONResponse({
+        "version": APP_VERSION,
+        "provider": "NASA GIBS (WMTS, sin API key)",
+        "url_template": "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/{layer}/default/{date}/{tms}/{matrix}/{row}/{col}.{ext}",
+        "note_for_ui": "El orden es TileRow/TileCol (fila = latitud).",
+        "layers": [
+            {
+                "key": key, "id": cfg["id"], "label": cfg.get("label", cfg["id"]),
+                "role": cfg["role"], "tms": cfg["tms"], "matrix": cfg["tile_matrix_id"],
+                "colormap": cfg.get("colormap"), "units": cfg["units"],
+                "extension": "jpg" if "TrueColor" in cfg["id"] else "png",
+            }
+            for key, cfg in ENV_LAYERS.items()
+        ],
+    })
+
+
+@app.get("/api/environment/intelligence")
+async def environment_intelligence(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    event_date: str = Query(..., description="YYYY-MM-DD"),
+    drought: bool = Query(True, description="Incluir percentil de sequía ERA5 (más lento)"),
+) -> JSONResponse:
+    safe = _safe_date(event_date)
+    target = safe or event_date
+    cache_key = _cache_key("environment", round(lat, 3), round(lon, 3), target, drought)
+    cached = await _cache_get(cache_key)
+    if cached:
+        cached["cache"] = "hit"
+        return JSONResponse(cached)
+    body = await build_environment_intelligence(lat, lon, target, include_drought=drought)
+    body["cache"] = "miss"
+    await _cache_put(cache_key, body)
+    return JSONResponse(body)
+
+
+@app.get("/api/evolution/demo")
+def evolution_demo(region: str = Query("mexico", pattern="^(mexico|amazon)$"), days: int = Query(5, ge=3, le=10)) -> JSONResponse:
+    frames = _evolution_demo_frames(region, days)
+    engine = _evolution_from_frames(frames, session=f"DEMO-{region.upper()}", min_points=2)
+    scenario = EVOLUTION_SCENARIOS.get(region) or EVOLUTION_SCENARIOS["mexico"]
+    return JSONResponse({
+        "version": APP_VERSION,
+        "mode": "evolution-demo",
+        "region": region,
+        "region_label": scenario["label"],
+        "camera": scenario["camera"],
+        "frames": frames,
+        "events": (engine["per_frame"][-1]["events"] if engine.get("per_frame") else []),
+        "evolution": engine,
+        "environmental_catalog": "/api/environment/catalog",
+        "sources": ["MODIS_SP", "VIIRS_NOAA20_SP"],
+        "warning": "Synthetic evolution scenario for engine demonstration. Not NASA observations.",
+        "caveat": engine["caveat"],
+    })
+
+
+@app.get("/api/evolution/archive")
+def evolution_archive(
+    area: str = Query(...),
+    start_date: str = Query(...),
+    days: int = Query(5, ge=2, le=31),
+    sources: str | None = Query(None),
+) -> JSONResponse:
+    safe_area = _safe_area(area)
+    start = _archive_date(start_date) if start_date else date.today() - timedelta(days=days)
+    status = archive_store.status()
+    if not status.get("ready"):
+        raise HTTPException(400, "Local archive is empty. Import FIRMS files first, or load the evolution demo.")
+    chosen = _archive_sources(sources)
+    frames: list[dict[str, Any]] = []
+    for offset in range(days):
+        day = start + timedelta(days=offset)
+        rows = archive_store.fires(safe_area, day, 1, chosen)
+        frames.append({"date": day.isoformat(), "fires": rows, "cells": [], "summary": {}})
+    frames = [f for f in frames if f["fires"]]
+    if not frames:
+        raise HTTPException(404, "No archived observations in that window.")
+    engine = _evolution_from_frames(frames, session="ARCHIVE", min_points=2)
+    return JSONResponse({
+        "version": APP_VERSION,
+        "mode": "evolution-archive",
+        "region": "viewport",
+        "region_label": f"LOCAL ARCHIVE · {safe_area}",
+        "frames": frames,
+        "events": (engine["per_frame"][-1]["events"] if engine.get("per_frame") else []),
+        "evolution": engine,
+        "sources": sorted({f.get("source") for frame in frames for f in frame["fires"] if f.get("source")}),
+        "warning": "Local archived FIRMS observations. Tracking identity remains heuristic.",
+        "caveat": engine["caveat"],
     })

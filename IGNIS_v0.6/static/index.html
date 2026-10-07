@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>IGNIS — Earth Fire Intelligence</title>
-  <link href="https://cdn.jsdelivr.net/npm/cesium@1.126/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+  <title>IGNIS v0.7 — Fire Evolution Engine</title>
+  <!-- Cesium 1.126 vendorizado localmente (offline); antes: https://cdn.jsdelivr.net/npm/cesium@1.126/Build/Cesium/Widgets/widgets.css -->
+  <link href="/static/vendor/cesium/Widgets/widgets.css" rel="stylesheet" />
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
@@ -13,12 +14,27 @@
     <div class="vignette"></div>
     <div class="scanline"></div>
 
+    <!-- HUD cinematográfico (God's Eye) -->
+    <div class="hud-frame" aria-hidden="true">
+      <span class="corner tl"></span><span class="corner tr"></span>
+      <span class="corner bl"></span><span class="corner br"></span>
+      <span class="hud-tick top"></span><span class="hud-tick bottom"></span>
+      <span class="hud-tick left"></span><span class="hud-tick right"></span>
+    </div>
+    <svg id="leaderLayer" aria-hidden="true"></svg>
+    <div class="cursor-hud glass hidden" id="cursorReadout">
+      <span id="cursorCoords">—</span><em id="cursorHeight">—</em>
+    </div>
+    <div class="tracking-banner hidden" id="trackingBanner">
+      <span class="tb-dot"></span><strong id="trackingId">—</strong><em id="trackingState">—</em>
+    </div>
+
     <header class="topbar glass">
       <div class="brand">
         <div class="brand-mark"><span></span></div>
         <div>
           <div class="eyebrow">EARTH FIRE INTELLIGENCE</div>
-          <div class="brand-name">IGNIS <span>// EARTH CONTEXT ENGINE</span></div>
+          <div class="brand-name">IGNIS <span>// FIRE EVOLUTION ENGINE</span></div>
         </div>
       </div>
       <div class="top-metrics">
@@ -28,6 +44,7 @@
         <div class="metric"><span>ARCHIVE</span><strong id="archiveTop">EMPTY</strong></div>
         <div class="metric"><span>EVENTS</span><strong id="eventTop">0</strong></div>
         <div class="metric"><span>STATUS</span><strong class="ok" id="systemStatus">ONLINE</strong></div>
+        <div class="metric"><span>RENDERER</span><strong id="rendererStatus">—</strong></div>
         <div class="clock" id="clock">--:--:-- UTC</div>
       </div>
     </header>
@@ -38,8 +55,11 @@
         <button class="seg active" data-mode="hotspots">HOTSPOTS</button>
         <button class="seg" data-mode="heat">FUSION GRID</button>
         <button class="seg" data-mode="events">FIRE EVENTS</button>
+        <button class="seg" data-mode="evolution">EVOLUTION</button>
       </div>
-      <button class="primary" id="btnHarmonizedDemo"><i></i> LOAD ANALYTICAL DEMO</button>
+      <button class="primary evo-launch" id="btnEvolutionDemo"><i></i> LOAD FIRE EVOLUTION (v0.7)</button>
+      <button class="primary evo-launch" id="btnEvolutionArchive" style="background:linear-gradient(135deg,rgba(24,58,48,.98),rgba(10,28,22,.94))!important"><i></i> TRACK LOCAL ARCHIVE · REAL NASA DATA</button>
+      <button class="secondary" id="btnHarmonizedDemo"><i></i> LOAD ANALYTICAL DEMO</button>
       <button class="secondary" id="btnHarmonize"><i></i> NASA · HARMONIZE REGION</button>
       <button class="secondary calendar-launch" id="btnCalendar"><i></i> BURNING ACTIVITY CALENDAR</button>
       <button class="secondary archive-launch" id="btnArchive"><i></i> LOCAL ARCHIVE MANAGER</button>
@@ -79,6 +99,16 @@
         <option value="0.10" selected>~11 km · balanced</option>
         <option value="0.20">~22 km · regional</option>
       </select>
+
+      <div class="divider"></div>
+      <div class="section-title"><span>05</span> ENVIRONMENTAL LAYERS <em class="env-hint">requiere internet</em></div>
+      <div class="env-toggle-grid" id="envLayers">
+        <button class="env-chip" data-env="aerosol">AEROSOLES</button>
+        <button class="env-chip" data-env="ndvi">VEGETACIÓN</button>
+        <button class="env-chip" data-env="truecolor">COLOR REAL</button>
+        <button class="env-chip" data-env="pyro">PIRO-CB · HUMO</button>
+      </div>
+      <div class="microcopy" id="envNote">Las capas usan NASA GIBS para la fecha del timeline. Sin internet quedan inactivas; el análisis no depende de ellas.</div>
 
       <div class="divider"></div>
       <div class="section-title"><span>04</span> HOTSPOT FILTERS</div>
@@ -128,6 +158,13 @@
       </div>
 
       <div class="divider"></div>
+      <div class="section-title"><span>EVO</span> FIRE EVOLUTION ENGINE</div>
+      <div class="evo-summary" id="evoSummary">
+        <span class="chip">NO TRACKS</span><small>Load the evolution demo or a multi-day dataset.</small>
+      </div>
+      <div class="evo-list" id="evoList"><div class="source-empty">Persistent event identities will appear here.</div></div>
+
+      <div class="divider"></div>
       <div class="section-title"><span>EVT</span> CANDIDATE FIRE EVENTS</div>
       <div class="event-list" id="eventList"><div class="source-empty">Load a multi-day dataset to build candidate events.</div></div>
 
@@ -152,20 +189,70 @@
         </div>
       </div>
 
-      <div class="divider"></div>
-      <div class="detail-empty" id="detailEmpty">SELECT A SIGNAL<br><small>Click a hotspot, fusion cell, or candidate event</small></div>
-      <div class="detail-card hidden" id="detailCard">
-        <div class="detail-kicker" id="detailKicker">HOTSPOT INTELLIGENCE</div>
-        <div class="detail-severity" id="detailSeverity">HIGH</div>
-        <dl>
-          <div><dt>LAT / LON</dt><dd id="detailCoords">—</dd></div>
-          <div><dt>FRP / SCORE</dt><dd id="detailFrp">—</dd></div>
-          <div><dt>CONFIDENCE</dt><dd id="detailConfidence">—</dd></div>
-          <div><dt>ACQUIRED</dt><dd id="detailTime">—</dd></div>
-          <div><dt>SENSOR</dt><dd id="detailSatellite">—</dd></div>
-        </dl>
-      </div>
     </aside>
+
+    <!-- Panel flotante de detalle (God's Eye) -->
+      <div class="detail-empty glass" id="detailEmpty">SELECT A SIGNAL<br><small>Click a hotspot, fusion cell, candidate event or track</small></div>
+      <div class="detail-card glass hidden" id="detailCard">
+        <div class="dossier-top">
+          <div class="detail-kicker" id="detailKicker">HOTSPOT INTELLIGENCE</div>
+          <div class="dossier-top-right">
+            <div class="detail-severity" id="detailSeverity">HIGH</div>
+            <button class="collapse-btn" id="btnCollapseDossier" title="Minimize panel">▾</button>
+          </div>
+        </div>
+        <div class="dossier-body">
+          <div class="dossier-col env-col">
+<div class="env-block" id="envBlock">
+              <div class="env-head"><span>ENTORNO · v0.8</span><em id="envDate">—</em></div>
+              <div class="env-rows">
+                <div><span>SEQUÍA (percentil)</span><strong id="envDrought">—</strong></div>
+                <div><span>VEGETACIÓN / COMBUSTIBLE</span><strong id="envFuel">—</strong></div>
+                <div><span>HUMO / AEROSOLES</span><strong id="envSmoke">—</strong></div>
+              </div>
+              <div class="env-evidence" id="envEvidence"><span class="env-loading">sin consultar</span></div>
+            </div>
+          </div>
+
+          <div class="dossier-col">
+            <dl>
+              <div><dt>LAT / LON</dt><dd id="detailCoords">—</dd></div>
+              <div><dt>FRP / SCORE</dt><dd id="detailFrp">—</dd></div>
+              <div><dt>CONFIDENCE</dt><dd id="detailConfidence">—</dd></div>
+              <div><dt>ACQUIRED</dt><dd id="detailTime">—</dd></div>
+              <div><dt>SENSOR</dt><dd id="detailSatellite">—</dd></div>
+            </dl>
+            <div class="evo-detail hidden" id="evoDetail">
+              <div class="evo-chart-wrap">
+                <svg id="evoChart" viewBox="0 0 260 74" preserveAspectRatio="none" aria-label="Event lifecycle chart"></svg>
+                <div class="evo-chart-legend"><span>DETECTIONS (BARS) · FRP (LINE)</span><em id="evoBasis">—</em></div>
+              </div>
+              <div class="evo-metrics">
+                <div><span>PERSISTENCE</span><strong id="evoDuration">—</strong></div>
+                <div><span>FRAMES</span><strong id="evoFrames">—</strong></div>
+                <div><span>PEAK</span><strong id="evoPeak">—</strong></div>
+                <div><span>DRIFT</span><strong id="evoDrift">—</strong></div>
+              </div>
+            </div>
+          </div>
+          <div class="dossier-col evo-intel hidden" id="evoIntel">
+            <div class="evo-head">
+              <span class="status-chip" id="evoStatus">—</span>
+              <span class="evo-identity" id="evoIdentity">—</span>
+            </div>
+            <div class="confidence-block">
+              <div class="confidence-head"><span>EVENT CONFIDENCE</span><strong id="evoConfidence">—</strong></div>
+              <div class="confidence-bars" id="evoBars"></div>
+            </div>
+            <div class="evidence-list" id="evoEvidence"></div>
+            <div class="evo-actions">
+              <button class="tiny" id="btnReplayTrack">▶ REPLAY LIFECYCLE</button>
+              <button class="tiny" id="btnStopReplay">■ STOP</button>
+            </div>
+            <small class="context-caveat" id="evoCaveat">Persistent identity and lifecycle state are analytical labels — not an official incident record.</small>
+          </div>
+        </div>
+      </div>
 
     <section class="calendar-panel glass hidden" id="calendarPanel" aria-label="Burning Activity Calendar">
       <div class="calendar-head">
@@ -248,14 +335,65 @@
       <input id="frameSlider" type="range" min="0" max="0" value="0" step="1" />
       <button class="play-btn" id="btnNext" title="Next frame">›</button>
       <button class="play-btn wide" id="btnPlay">PLAY</button>
-      <div class="phase-tag">V0.6 · EARTH CONTEXT ENGINE</div>
+      <div class="phase-tag">V0.7 · FIRE EVOLUTION ENGINE</div>
     </footer>
 
-    <div class="method-badge glass">FIRMS · EVENT CLUSTERS · ERA5-LAND · CAMS · DUCKDB · PARQUET</div>
+    <div class="method-badge glass">FIRMS · PERSISTENT TRACKS · EVENT EVOLUTION · ERA5-LAND · CAMS · DUCKDB · PARQUET</div>
     <div class="disclaimer-strip glass">THERMAL ANOMALIES ≠ CONFIRMED WILDFIRE · NOT FOR LIFE/PROPERTY SAFETY DECISIONS</div>
     <div id="toast" class="toast hidden"></div>
+    <div class="render-alert hidden" id="renderAlert">
+      <strong id="renderAlertTitle">MAPA 3D EN MODO SEGURO</strong>
+      <span id="renderAlertBody">—</span>
+      <button class="tiny" id="btnRetryRender">REINTENTAR RENDER</button>
+    </div>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/cesium@1.126/Build/Cesium/Cesium.js"></script>
+  <!-- IGNIS: shim de Web Workers + diagnóstico de render.
+       En iframes con sandbox="allow-scripts" (origen opaco "null") el navegador
+       bloquea `new Worker(url)` por política de sandbox, pero SÍ permite workers
+       creados desde blob:. Este shim reintenta vía blob+importScripts, que es lo
+       que necesita Cesium para construir geometría (estelas, anillos). -->
+  <script>
+  (function () {
+    window.IGNIS_ENV = {sandboxed: false, workerMode: 'native', renderError: null};
+    try { if (String(window.origin) === 'null') window.IGNIS_ENV.sandboxed = true; } catch (e) {}
+    var Native = window.Worker;
+    if (!Native) { window.IGNIS_ENV.workerMode = 'none'; return; }
+    function blobFor(url, options) {
+      var isModule = !!(options && options.type === 'module');
+      var code = isModule
+        ? 'import(' + JSON.stringify(url) + ').catch(function(e){self.postMessage({__ignisImportError:String(e)});});'
+        : 'importScripts(' + JSON.stringify(url) + ');';
+      return URL.createObjectURL(new Blob([code], {type: 'text/javascript'}));
+    }
+    function Wrapped(url, options) {
+      try { return new Native(url, options); }
+      catch (err) {
+        var blobUrl = blobFor(String(url), options);
+        try { return new Native(blobUrl, options); }
+        catch (err2) { return new Native(blobUrl); }
+      }
+    }
+    Wrapped.prototype = Native.prototype;
+    window.Worker = Wrapped;
+    // Prueba de humo: ¿los workers funcionan aquí?
+    try {
+      var probe = new Wrapped(URL.createObjectURL(new Blob(['self.close()'], {type: 'text/javascript'})));
+      probe.terminate();
+      window.IGNIS_ENV.workerMode = 'native';
+    } catch (e) {
+      try {
+        var probe2 = new Native(URL.createObjectURL(new Blob(['self.close()'], {type: 'text/javascript'})));
+        probe2.terminate();
+        window.IGNIS_ENV.workerMode = 'blob-fallback';
+      } catch (e2) {
+        window.IGNIS_ENV.workerMode = 'none';
+        window.IGNIS_ENV.workerError = String(e2).slice(0, 200);
+      }
+    }
+  })();
+  </script>
+  <!-- Cesium 1.126 vendorizado localmente (offline); antes: https://cdn.jsdelivr.net/npm/cesium@1.126/Build/Cesium/Cesium.js -->
+  <script src="/static/vendor/cesium/Cesium.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

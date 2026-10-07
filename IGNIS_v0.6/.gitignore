@@ -1,0 +1,16 @@
+# Entorno y cachés locales
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Secretos: la MAP_KEY de NASA FIRMS nunca debe subirse al repo
+.env
+
+# Archivo histórico local generado en runtime (DuckDB + Parquet + inbox)
+data/archive/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+data/events/
