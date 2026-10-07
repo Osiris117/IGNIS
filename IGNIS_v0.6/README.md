@@ -1,6 +1,16 @@
-# IGNIS v0.8 — Environmental Intelligence
+# IGNIS v0.9 — Intelligence Analyst
 
-IGNIS is a cross-platform 3D wildfire/thermal-anomaly intelligence prototype built around NASA FIRMS MODIS/VIIRS observations. v0.8 adds **Environmental Intelligence**: drought percentiles from ERA5, vegetation/fuel context from MODIS NDVI, smoke/aerosol context (MODIS AOD + OMPS pyro-cumulonimbus) and switchable NASA GIBS layers on the globe that follow the timeline. It builds on v0.7 (Fire Evolution Engine: persistent event IDs, lifecycle states, apparent drift, trails, replayable lifecycles, explainable Event Confidence Score), the v0.6 Earth Context Engine and the v0.5 DuckDB + Parquet archive.
+IGNIS is a cross-platform 3D wildfire/thermal-anomaly intelligence prototype built around NASA FIRMS MODIS/VIIRS observations. v0.9 adds the **Intelligence Analyst**: an explainable, bilingual (ES/EN) briefing per persistent event — every sentence bound to the measured figures that back it (citations with metric, value and source) — plus a **light/dark theme switch** and a **language switch** for the whole interface. It builds on v0.8 (drought percentiles from ERA5, vegetation/fuel from MODIS NDVI, smoke/aerosols from MODIS AOD + OMPS, switchable NASA GIBS layers), v0.7 (Fire Evolution Engine: persistent event IDs, lifecycle states, apparent drift, trails, explainable Event Confidence Score), v0.6 Earth Context Engine and the v0.5 DuckDB + Parquet archive.
+
+## v0.9 highlights
+
+- **Explainable briefing per event**: headline + sentences, each carrying citations (metric, value, unit, source).
+- **Deterministic templates over measured data**: no free-form text generation, no invented figures.
+- **Contextual indices 0-100**: dryness, fuel, smoke and a combined environmental context index.
+- **Historical anchor**: same-month, same-area comparison from the local DuckDB archive (falls back to live FIRMS MODIS when `FIRMS_MAP_KEY` is set).
+- **Bilingual interface (ES / EN)**: header, panels, buttons, select options, toasts, calendar notes, engine evidence and the briefing itself; Spanish decimal separators included.
+- **Light / dark theme**: systematic light palette generated from the dark one, with Cesium globe adjustments (no solar lighting, brighter base imagery).
+- Docs: [`docs/INTELLIGENCE_ANALYST.md`](docs/INTELLIGENCE_ANALYST.md) · [`docs/ENVIRONMENTAL_INTELLIGENCE.md`](docs/ENVIRONMENTAL_INTELLIGENCE.md)
 
 ## v0.8 highlights
 

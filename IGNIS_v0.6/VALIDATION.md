@@ -144,3 +144,37 @@ python -m uvicorn backend.app:app --host 0.0.0.0 --port 8010
 `overlayVisible:false` · `renderer:"WEBGL · SW · SANDBOX"` · tiles GIBS 200 ·
 capas activas sin fallos · consola sin errores · dossier con bloque ENTORNO
 poblado (sequía 22.2 %, NDVI 0.82, AOD 0.19).
+
+
+---
+
+## Validación v0.9 — Intelligence Analyst + ES/EN + tema claro/oscuro
+
+### 1. Briefing explicable (motor de evolución, datos sintéticos de demo)
+| Comprobación | Resultado |
+|---|---|
+| Frases generadas | 10 (titular, actividad, sensores, deriva, 3 de entorno, confianza, incertidumbre) |
+| Citas verificables | 14, cada una con métrica, valor, unidad y fuente |
+| Sin dato inventado | Cuando el archivo local no cubre años previos, el bloque `baseline` lo declara |
+| Separador decimal | ES `65,4 %` · EN `65.4 %` (mismo número, formato local) |
+
+### 2. Traducción (ES ↔ EN)
+- Restos en inglés detectados tras el cambio: **solo nombres propios de fuentes**
+  (`IGNIS Fire Evolution Engine`, `FIRMS confidence field`, `Open-Meteo ERA5 archive`),
+  que se mantienen a propósito por ser identificadores verificables.
+- Se traducen también las cadenas que reescribe el JS en tiempo de ejecución
+  (etiquetas de estado del panel derecho, evidencia del score de confianza,
+  notas del calendario, toasts, opciones de los `<select>`).
+
+### 3. Tema claro
+- El CSS claro se genera de forma sistemática desde los colores del tema oscuro
+  (mapeo de ~60 pares de color) para que ningún panel quede ilegible.
+- Ajustes específicos de Cesium: `enableLighting=false`, sin skybox/bloom/HDR,
+  brillo 1.30 y gamma 1.06 en la imagen base, colores base claros.
+
+### 4. Prueba en el iframe sandbox (entorno real del preview)
+```
+overlayVisible: false        renderer: WEBGL · SW · SANDBOX
+tiles GIBS: 116 × HTTP 200   errores de consola: 0
+ES oscuro · ES claro · EN claro · ES oscuro (vuelta)  → los cuatro estados verificados
+```

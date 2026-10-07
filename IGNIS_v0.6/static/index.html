@@ -34,7 +34,7 @@
         <div class="brand-mark"><span></span></div>
         <div>
           <div class="eyebrow">EARTH FIRE INTELLIGENCE</div>
-          <div class="brand-name">IGNIS <span>// ENVIRONMENTAL INTELLIGENCE</span></div>
+          <div class="brand-name">IGNIS <span>// INTELLIGENCE ANALYST</span></div>
         </div>
       </div>
       <div class="top-metrics">
@@ -45,6 +45,15 @@
         <div class="metric"><span>EVENTS</span><strong id="eventTop">0</strong></div>
         <div class="metric"><span>STATUS</span><strong class="ok" id="systemStatus">ONLINE</strong></div>
         <div class="metric"><span>RENDERER</span><strong id="rendererStatus">—</strong></div>
+        <div class="shell-controls">
+          <div class="lang-switch" id="langSwitch" role="group" aria-label="Language">
+            <button class="lang-btn active" data-lang="es" title="Español">ES</button>
+            <button class="lang-btn" data-lang="en" title="English">EN</button>
+          </div>
+          <button class="theme-btn" id="themeToggle" title="Modo claro / oscuro" aria-label="Theme">
+            <span class="theme-icon">◐</span>
+          </button>
+        </div>
         <div class="clock" id="clock">--:--:-- UTC</div>
       </div>
     </header>
@@ -109,6 +118,11 @@
         <button class="env-chip" data-env="pyro">PIRO-CB · HUMO</button>
       </div>
       <div class="microcopy" id="envNote">Las capas usan NASA GIBS para la fecha del timeline. Sin internet quedan inactivas; el análisis no depende de ellas.</div>
+
+      <div class="divider"></div>
+      <div class="section-title"><span>06</span> INTELLIGENCE ANALYST</div>
+      <button class="primary analyst-launch" id="btnAnalyst"><i></i> GENERATE BRIEFING</button>
+      <div class="microcopy" id="analystHint">Select a persistent event to generate its explainable briefing. Every sentence carries its citations.</div>
 
       <div class="divider"></div>
       <div class="section-title"><span>04</span> HOTSPOT FILTERS</div>
@@ -326,6 +340,25 @@
       </div>
     </section>
 
+
+    <section class="analyst-panel glass hidden" id="analystPanel" data-i18n-skip="citations">
+      <div class="analyst-head">
+        <div>
+          <div class="eyebrow" id="analystKicker">INTELLIGENCE ANALYST · BRIEFING</div>
+          <h2 id="analystTrack">—</h2>
+          <p id="analystMeta">—</p>
+        </div>
+        <div class="analyst-actions">
+          <button class="tiny" id="btnAnalystCopy">COPY</button>
+          <button class="close-btn" id="btnAnalystClose">×</button>
+        </div>
+      </div>
+      <div class="analyst-headline" id="analystHeadline">—</div>
+      <div class="analyst-indices" id="analystIndices"></div>
+      <div class="analyst-body" id="analystBody"></div>
+      <div class="analyst-foot" id="analystFoot"></div>
+    </section>
+
     <footer class="timeline glass">
       <div class="timeline-heading">
         <span>TEMPORAL INTELLIGENCE</span>
@@ -335,7 +368,7 @@
       <input id="frameSlider" type="range" min="0" max="0" value="0" step="1" />
       <button class="play-btn" id="btnNext" title="Next frame">›</button>
       <button class="play-btn wide" id="btnPlay">PLAY</button>
-      <div class="phase-tag">V0.8 · ENVIRONMENTAL INTELLIGENCE</div>
+      <div class="phase-tag">V0.9 · INTELLIGENCE ANALYST</div>
     </footer>
 
     <div class="method-badge glass">FIRMS · PERSISTENT TRACKS · EVENT EVOLUTION · ERA5-LAND · CAMS · DUCKDB · PARQUET</div>
@@ -394,6 +427,8 @@
   </script>
   <!-- Cesium 1.126 vendorizado localmente (offline); antes: https://cdn.jsdelivr.net/npm/cesium@1.126/Build/Cesium/Cesium.js -->
   <script src="/static/vendor/cesium/Cesium.js"></script>
+  <script src="/static/i18n.js"></script>
+  <script src="/static/ui-shell.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

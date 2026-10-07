@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.archive_store import ARCHIVE_SOURCES, INBOX_DIR, archive_store
 from backend.context_engine import build_environment_context, cluster_fire_events
+from backend.analyst_engine import build_briefing
 from backend.environment_engine import LAYERS as ENV_LAYERS, build_environment_intelligence
 from backend.evolution_engine import track_evolution
 
@@ -31,7 +32,7 @@ STATIC_DIR = ROOT / "static"
 DATA_DIR = ROOT / "data"
 load_dotenv(ROOT / ".env")
 
-APP_VERSION = "0.8.0"
+APP_VERSION = "0.9.0"
 app = FastAPI(title="IGNIS — Earth Fire Intelligence", version=APP_VERSION)
 
 # El preview del workspace (y cualquier iframe con sandbox="allow-scripts") expone
@@ -1255,6 +1256,61 @@ def _evolution_from_frames(frames: list[dict[str, Any]], session: str, min_point
 # --------------------------------------------------------------------------- #
 # v0.8 — Environmental Intelligence
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# v0.9 — IGNIS Intelligence Analyst
+# --------------------------------------------------------------------------- #
+@app.get("/api/analyst/sample")
+def analyst_sample(lang: str = Query("es", pattern="^(es|en)$")) -> JSONResponse:
+    """Briefing de ejemplo para que la interfaz pueda mostrarlo sin selección previa."""
+    frames = _evolution_demo_frames("mexico", 5)
+    engine = _evolution_from_frames(frames, session="DEMO-MEXICO", min_points=2)
+    tracks = [t for t in engine["tracks"] if t["status"] != "EXTINCT"] or engine["tracks"]
+    if not tracks:
+        raise HTTPException(503, "No tracks available for a sample briefing.")
+    return JSONResponse({
+        "version": APP_VERSION,
+        "mode": "analyst-sample",
+        "track": tracks[0],
+        "usage": "POST /api/analyst/briefing with {\"track\": <track>, \"lang\": \"es|en\"}",
+        "lang": lang,
+    })
+
+
+@app.post("/api/analyst/briefing")
+async def analyst_briefing(payload: dict[str, Any]) -> JSONResponse:
+    """Narrativa explicable de un evento persistente.
+
+    Cuerpo esperado::
+
+        {"track": { ...registro del motor de evolución... },
+         "lang": "es", "environment": true, "baseline": true, "baseline_years": 10}
+
+    Cada frase del briefing viaja con las cifras exactas que la sostienen.
+    """
+    track = payload.get("track")
+    if not isinstance(track, dict) or not track.get("id"):
+        raise HTTPException(422, "Se requiere un objeto 'track' con al menos 'id'.")
+    lang = str(payload.get("lang", "es")).lower()[:2]
+    if lang not in ("es", "en"):
+        lang = "es"
+    include_environment = bool(payload.get("environment", True))
+    include_baseline = bool(payload.get("baseline", True))
+    try:
+        years = int(payload.get("baseline_years", 10))
+    except (TypeError, ValueError):
+        years = 10
+    years = max(2, min(15, years))
+
+    body = await build_briefing(
+        track,
+        lang=lang,
+        include_environment=include_environment,
+        include_baseline=include_baseline,
+        baseline_years=years,
+    )
+    return JSONResponse(body)
+
+
 @app.get("/api/environment/catalog")
 def environment_catalog() -> JSONResponse:
     """Capas GIBS verificadas (con su TileMatrixSet correcto) para la UI."""
@@ -1281,15 +1337,16 @@ async def environment_intelligence(
     lon: float = Query(..., ge=-180, le=180),
     event_date: str = Query(..., description="YYYY-MM-DD"),
     drought: bool = Query(True, description="Incluir percentil de sequía ERA5 (más lento)"),
+    lang: str = Query("es", pattern="^(es|en)$", description="Idioma de las frases de evidencia"),
 ) -> JSONResponse:
     safe = _safe_date(event_date)
     target = safe or event_date
-    cache_key = _cache_key("environment", round(lat, 3), round(lon, 3), target, drought)
+    cache_key = _cache_key("environment", lang, round(lat, 3), round(lon, 3), target, drought)
     cached = await _cache_get(cache_key)
     if cached:
         cached["cache"] = "hit"
         return JSONResponse(cached)
-    body = await build_environment_intelligence(lat, lon, target, include_drought=drought)
+    body = await build_environment_intelligence(lat, lon, target, include_drought=drought, lang=lang)
     body["cache"] = "miss"
     await _cache_put(cache_key, body)
     return JSONResponse(body)

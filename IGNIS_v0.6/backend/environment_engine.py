@@ -177,11 +177,11 @@ def _tile_has_data(payload: bytes, min_opaque: int = 16) -> bool:
         return bool(payload)  # si no se puede analizar, confiar en el 200
 
 
-def _freshness(sample: dict[str, Any]) -> str:
+def _freshness(sample: dict[str, Any], lang: str = "es") -> str:
     """Aviso honesto cuando el compuesto usado no es del día pedido."""
     used, asked = sample.get("date"), sample.get("requested_date")
     if used and asked and used != asked:
-        return f" (compuesto de {used}; el de {asked} aún no traía datos)"
+        return L(lang, "freshness", used=used, asked=asked)
     return ""
 
 
@@ -322,25 +322,89 @@ def _percentile_rank(values: list[float], current: float) -> float:
     return 100.0 * (below + 0.5 * equal) / len(values)
 
 
-def _drought_category(percentile: float) -> tuple[str, str]:
-    if percentile <= 2:
-        return "EXCEPTIONAL", "sequía excepcional (D4)"
-    if percentile <= 5:
-        return "EXTREME", "sequía extrema (D3)"
-    if percentile <= 10:
-        return "SEVERE", "sequía severa (D2)"
-    if percentile <= 20:
-        return "MODERATE", "sequía moderada (D1)"
-    if percentile <= 30:
-        return "ABNORMALLY_DRY", "anormalmente seco (D0)"
-    if percentile >= 90:
-        return "VERY_WET", "muy húmedo"
-    if percentile >= 70:
-        return "WET", "húmedo"
-    return "NORMAL", "cerca de lo normal"
+# --- v0.9: etiquetas bilingües (el motor sigue siendo el mismo; sólo cambia el texto) ---
+LABELS: dict[str, dict[str, str]] = {
+    "es": {
+        "EXCEPTIONAL": "sequía excepcional (D4)", "EXTREME": "sequía extrema (D3)",
+        "SEVERE": "sequía severa (D2)", "MODERATE": "sequía moderada (D1)",
+        "ABNORMALLY_DRY": "anormalmente seco (D0)", "VERY_WET": "muy húmedo",
+        "WET": "húmedo", "NORMAL": "cerca de lo normal",
+        "SPARSE": "suelo desnudo / vegetación muy escasa",
+        "LOW": "vegetación escasa (matorral seco, pastizal)",
+        "HIGH": "vegetación alta (bosque abierto, sabana)",
+        "VERY_HIGH": "vegetación muy alta (bosque cerrado)",
+        "MODERATE_FUEL": "vegetación moderada (pastizal denso, cultivo)",
+        "CLEAN": "atmósfera limpia", "LIGHT": "aerosoles ligeros",
+        "MODERATE_SMOKE": "aerosoles moderados", "HEAVY": "aerosoles densos",
+        "VERY_HEAVY": "aerosoles muy densos (posible humo denso o polvo)",
+        "precip": "precipitación 90 días: {mm} mm (percentil {pct} frente a {years} años)",
+        "category": "categoría: {label}",
+        "aridity": "demanda atmosférica ET0/precip (30 d): {value}",
+        "freshness": " (compuesto de {used}; el de {asked} aún no traía datos)",
+        "no_tile": "sin tile con datos para {day} ni los 3 días previos ({what} de NASA GIBS)",
+        "no_pixel": "tile con datos ese día, pero sin dato válido en la vecindad (nubes, océano o máscara de calidad)",
+        "page_fail": "no se pudo leer el píxel: {error}",
+        "nodata": "NDVI no interpretable en ese píxel (nubes/colormap)",
+        "not_enough": "el archivo ERA5 no cubre suficientes años en ese punto",
+        "not_enough_years": "sin años suficientes para el percentil {window}",
+        "summary_pending": "contexto incompleto",
+    },
+    "en": {
+        "EXCEPTIONAL": "exceptional drought (D4)", "EXTREME": "extreme drought (D3)",
+        "SEVERE": "severe drought (D2)", "MODERATE": "moderate drought (D1)",
+        "ABNORMALLY_DRY": "abnormally dry (D0)", "VERY_WET": "very wet",
+        "WET": "wet", "NORMAL": "near normal",
+        "SPARSE": "bare soil / very sparse vegetation",
+        "LOW": "sparse vegetation (dry shrubland, grassland)",
+        "HIGH": "high vegetation (open forest, savanna)",
+        "VERY_HIGH": "very high vegetation (closed forest)",
+        "MODERATE_FUEL": "moderate vegetation (dense grassland, crops)",
+        "CLEAN": "clean atmosphere", "LIGHT": "light aerosols",
+        "MODERATE_SMOKE": "moderate aerosols", "HEAVY": "dense aerosols",
+        "VERY_HEAVY": "very dense aerosols (possible dense smoke or dust)",
+        "precip": "90-day rainfall: {mm} mm (percentile {pct} against {years} years)",
+        "category": "category: {label}",
+        "aridity": "atmospheric demand ET0/precip (30 d): {value}",
+        "freshness": " (composite of {used}; the {asked} one had no data yet)",
+        "no_tile": "no tile with data for {day} nor the 3 prior days ({what} from NASA GIBS)",
+        "no_pixel": "tile has data that day, but no valid sample in the neighbourhood (clouds, ocean or quality mask)",
+        "page_fail": "pixel read failed: {error}",
+        "nodata": "NDVI not interpretable at that pixel (clouds/colormap)",
+        "not_enough": "ERA5 archive does not cover enough years at that point",
+        "not_enough_years": "not enough years for the {window} percentile",
+        "summary_pending": "incomplete context",
+    },
+}
+LAYER_WORDS = {"aerosol": {"es": "AOD", "en": "AOD"}, "ndvi": {"es": "NDVI", "en": "NDVI"},
+               "soil": {"es": "SMAP", "en": "SMAP"}, "truecolor": {"es": "color real", "en": "true color"},
+               "thermal": {"es": "anomalías térmicas", "en": "thermal anomalies"},
+               "pyro": {"es": "índice PyroCb", "en": "PyroCb index"}}
 
 
-async def drought_context(lat: float, lon: float, target: date, years: int = 10) -> dict[str, Any]:
+def L(lang: str, key: str, **kw: object) -> str:
+    table = LABELS.get("en" if str(lang).lower().startswith("en") else "es")
+    text = table.get(key) or LABELS["es"].get(key) or key
+    try:
+        return text.format(**kw)
+    except (KeyError, IndexError):
+        return text
+
+
+def _drought_category(percentile: float, lang: str = "es") -> tuple[str, str]:
+    code = (
+        "EXCEPTIONAL" if percentile <= 2 else
+        "EXTREME" if percentile <= 5 else
+        "SEVERE" if percentile <= 10 else
+        "MODERATE" if percentile <= 20 else
+        "ABNORMALLY_DRY" if percentile <= 30 else
+        "VERY_WET" if percentile >= 90 else
+        "WET" if percentile >= 70 else
+        "NORMAL"
+    )
+    return code, L(lang, code)
+
+
+async def drought_context(lat: float, lon: float, target: date, years: int = 10, lang: str = "es") -> dict[str, Any]:
     start = target - timedelta(days=365 * years + 30)
     params = {
         "latitude": round(lat, 3),
@@ -406,8 +470,8 @@ async def drought_context(lat: float, lon: float, target: date, years: int = 10)
             "percentile": round(percentile, 1),
             "history_years": len(history),
             "history_mean_mm": round(statistics.fmean(history), 1),
-            "category": _drought_category(percentile)[0],
-            "category_label": _drought_category(percentile)[1],
+            "category": (cat := _drought_category(percentile, lang))[0],
+            "category_label": cat[1],
         }
 
     et0_window = window_sum(target, 30, et0_series)
@@ -418,15 +482,16 @@ async def drought_context(lat: float, lon: float, target: date, years: int = 10)
 
     primary = windows.get("90d") or windows.get("30d") or windows.get("180d") or windows.get("365d")
     if primary is None:
-        return {"available": False, "reason": "not enough archive coverage", "provider": "Open-Meteo ERA5 archive"}
+        return {"available": False, "reason": L(lang, "not_enough"), "provider": "Open-Meteo ERA5 archive"}
 
+    ninety = windows.get("90d", {})
     evidence = [
-        f"precipitación 90 días: {windows.get('90d', {}).get('precip_mm', '—')} mm "
-        f"(percentil {windows.get('90d', {}).get('percentile', '—')} frente a {windows.get('90d', {}).get('history_years', 0)} años)",
-        f"categoría: {primary['category_label']}",
+        L(lang, "precip", mm=ninety.get("precip_mm", "—"), pct=ninety.get("percentile", "—"),
+          years=ninety.get("history_years", 0)),
+        L(lang, "category", label=primary["category_label"]),
     ]
     if aridity is not None:
-        evidence.append(f"demanda atmosférica ET0/precip (30 d): {aridity}")
+        evidence.append(L(lang, "aridity", value=aridity))
 
     return {
         "available": True,
@@ -447,31 +512,29 @@ async def drought_context(lat: float, lon: float, target: date, years: int = 10)
 # --------------------------------------------------------------------------- #
 # 2 · combustible / vegetación  ·  3 · humo / aerosoles
 # --------------------------------------------------------------------------- #
-def _fuel_class(ndvi: float) -> tuple[str, str]:
-    if ndvi < 0.1:
-        return "SPARSE", "suelo desnudo / vegetación muy escasa"
-    if ndvi < 0.25:
-        return "LOW", "vegetación escasa (matorral seco, pastizal)"
-    if ndvi < 0.4:
-        return "MODERATE", "vegetación moderada (pastizal denso, cultivo)"
-    if ndvi < 0.6:
-        return "HIGH", "vegetación alta (bosque abierto, sabana)"
-    return "VERY_HIGH", "vegetación muy alta (bosque cerrado)"
+def _fuel_class(ndvi: float, lang: str = "es") -> tuple[str, str]:
+    code = (
+        "SPARSE" if ndvi < 0.1 else
+        "LOW" if ndvi < 0.25 else
+        "MODERATE" if ndvi < 0.4 else
+        "HIGH" if ndvi < 0.6 else
+        "VERY_HIGH"
+    )
+    return code, L(lang, "MODERATE_FUEL" if code == "MODERATE" else code)
 
 
-def _smoke_class(aod: float) -> tuple[str, str]:
-    if aod < 0.1:
-        return "CLEAN", "atmósfera limpia"
-    if aod < 0.25:
-        return "LIGHT", "aerosoles ligeros"
-    if aod < 0.5:
-        return "MODERATE", "aerosoles moderados"
-    if aod < 1.0:
-        return "HEAVY", "aerosoles densos"
-    return "VERY_HEAVY", "aerosoles muy densos (posible humo denso o polvo)"
+def _smoke_class(aod: float, lang: str = "es") -> tuple[str, str]:
+    code = (
+        "CLEAN" if aod < 0.1 else
+        "LIGHT" if aod < 0.25 else
+        "MODERATE" if aod < 0.5 else
+        "HEAVY" if aod < 1.0 else
+        "VERY_HEAVY"
+    )
+    return code, L(lang, "MODERATE_SMOKE" if code == "MODERATE" else code)
 
 
-async def sample_layer(layer_key: str, lat: float, lon: float, day: str) -> dict[str, Any]:
+async def sample_layer(layer_key: str, lat: float, lon: float, day: str, lang: str = "es") -> dict[str, Any]:
     cfg = LAYERS[layer_key]
     async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=True) as client:
         (tile_bytes, used_day), colormap = await asyncio.gather(
@@ -481,7 +544,7 @@ async def sample_layer(layer_key: str, lat: float, lon: float, day: str) -> dict
     if tile_bytes is None:
         return {
             "available": False,
-            "reason": f"sin tile con datos para {day} ni los 3 días previos ({{'aerosol': 'AOD', 'ndvi': 'NDVI', 'soil': 'SMAP', 'truecolor': 'color real', 'thermal': 'anomalías térmicas', 'pyro': 'índice PyroCb'}}.get(layer_key, layer_key) de NASA GIBS)",
+            "reason": L(lang, "no_tile", day=day, what=LAYER_WORDS.get(layer_key, {}).get("en" if str(lang).lower().startswith("en") else "es", layer_key)),
             "provider": "NASA GIBS",
             "requested_date": day,
             "date": None,
@@ -491,11 +554,11 @@ async def sample_layer(layer_key: str, lat: float, lon: float, day: str) -> dict
     try:
         r, g, b, a, valid = _sample_pixel(tile_bytes, fx, fy)
     except Exception as exc:
-        return {"available": False, "reason": f"pixel read failed: {exc}", "provider": "NASA GIBS"}
+        return {"available": False, "reason": L(lang, "page_fail", error=exc), "provider": "NASA GIBS"}
     if valid == 0 or a < 10:
         return {
             "available": False,
-            "reason": "tile con datos ese día, pero sin dato válido en la vecindad (nubes, océano o máscara de calidad)",
+            "reason": L(lang, "no_pixel"),
             "provider": "NASA GIBS",
             "date": used_day,
             "requested_date": day,
@@ -521,31 +584,31 @@ async def sample_layer(layer_key: str, lat: float, lon: float, day: str) -> dict
     }
 
 
-async def fuel_context(lat: float, lon: float, day: str) -> dict[str, Any]:
-    sample = await sample_layer("ndvi", lat, lon, day)
+async def fuel_context(lat: float, lon: float, day: str, lang: str = "es") -> dict[str, Any]:
+    sample = await sample_layer("ndvi", lat, lon, day, lang)
     if not sample.get("available"):
         return sample
     ndvi = sample.get("value")
     if ndvi is None:
-        return {**sample, "available": False, "reason": "NDVI no interpretable en ese píxel (nubes/colormap)"}
-    label, description = _fuel_class(float(ndvi))
+        return {**sample, "available": False, "reason": L(lang, "nodata")}
+    label, description = _fuel_class(float(ndvi), lang)
     return {
         **sample,
         "ndvi": float(ndvi),
         "fuel_class": label,
         "fuel_label": description,
-        "evidence": f"NDVI ≈ {float(ndvi):.2f} → {description}{_freshness(sample)}",
+        "evidence": f"NDVI ≈ {float(ndvi):.2f} → {description}{_freshness(sample, lang)}",
     }
 
 
-async def smoke_context(lat: float, lon: float, day: str) -> dict[str, Any]:
+async def smoke_context(lat: float, lon: float, day: str, lang: str = "es") -> dict[str, Any]:
     aod_sample, pyro_sample = await asyncio.gather(
-        sample_layer("aerosol", lat, lon, day),
-        sample_layer("pyro", lat, lon, day),
+        sample_layer("aerosol", lat, lon, day, lang),
+        sample_layer("pyro", lat, lon, day, lang),
     )
     out: dict[str, Any] = {"aerosol": aod_sample, "pyro_cumulonimbus": pyro_sample}
     if aod_sample.get("available") and aod_sample.get("value") is not None:
-        label, description = _smoke_class(float(aod_sample["value"]))
+        label, description = _smoke_class(float(aod_sample["value"]), lang)
         out.update(
             available=True,
             provider="NASA GIBS · MODIS AOD + OMPS PyroCb",
@@ -573,20 +636,20 @@ async def smoke_context(lat: float, lon: float, day: str) -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # orquestación
 # --------------------------------------------------------------------------- #
-async def build_environment_intelligence(lat: float, lon: float, iso_date: str, *, include_drought: bool = True) -> dict[str, Any]:
+async def build_environment_intelligence(lat: float, lon: float, iso_date: str, *, include_drought: bool = True, lang: str = "es") -> dict[str, Any]:
     try:
         target = datetime.strptime(iso_date[:10], "%Y-%m-%d").date()
     except ValueError:
         target = date.today()
     day = target.isoformat()
 
-    tasks: list[Any] = [fuel_context(lat, lon, day), smoke_context(lat, lon, day)]
+    tasks: list[Any] = [fuel_context(lat, lon, day, lang), smoke_context(lat, lon, day, lang)]
     if include_drought:
-        tasks.append(drought_context(lat, lon, target))
+        tasks.append(drought_context(lat, lon, target, lang=lang))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
     fuel, smoke = results[0], results[1]
-    drought = results[2] if include_drought else {"available": False, "reason": "omitido"}
+    drought = results[2] if include_drought else {"available": False, "reason": "omitido" if lang != "en" else "skipped"}
     for name, value in (("fuel", fuel), ("smoke", smoke), ("drought", drought)):
         if isinstance(value, Exception):
             results_map = {"fuel": {}, "smoke": {}, "drought": {}}
@@ -606,7 +669,7 @@ async def build_environment_intelligence(lat: float, lon: float, iso_date: str, 
     ]
 
     return {
-        "version": "0.8.0",
+        "version": "0.9.0",
         "engine": "environmental-intelligence",
         "lat": round(lat, 5),
         "lon": round(lon, 5),
@@ -621,7 +684,11 @@ async def build_environment_intelligence(lat: float, lon: float, iso_date: str, 
             "fuel": fuel.get("fuel_label") if isinstance(fuel, dict) and fuel.get("available") else None,
             "smoke": smoke.get("smoke_label") if isinstance(smoke, dict) and smoke.get("available") else None,
         },
+        "lang": "en" if str(lang).lower().startswith("en") else "es",
         "caveat": (
+            "Analytical environmental context: drought by rainfall percentile, vegetation by NDVI, aerosols by AOD/OMPS. "
+            "None of these is an operational fire-danger product, and co-located smoke does not attribute cause."
+            if str(lang).lower().startswith("en") else
             "Contexto ambiental analítico: sequía por percentil de precipitación, vegetación por NDVI y aerosoles por AOD/OMPS. "
             "Ninguno es un producto operativo de peligro de incendio y la co-localización de humo no atribuye causa."
         ),
