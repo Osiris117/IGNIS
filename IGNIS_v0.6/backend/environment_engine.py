@@ -669,7 +669,7 @@ async def build_environment_intelligence(lat: float, lon: float, iso_date: str, 
     ]
 
     return {
-        "version": "0.9.0",
+        "version": "0.9.1",
         "engine": "environmental-intelligence",
         "lat": round(lat, 5),
         "lon": round(lon, 5),

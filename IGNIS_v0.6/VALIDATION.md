@@ -178,3 +178,49 @@ overlayVisible: false        renderer: WEBGL · SW · SANDBOX
 tiles GIBS: 116 × HTTP 200   errores de consola: 0
 ES oscuro · ES claro · EN claro · ES oscuro (vuelta)  → los cuatro estados verificados
 ```
+
+
+---
+
+## v0.9.1 — Auditoría de contraste, temas y accesibilidad
+
+Herramienta: Playwright + CDP sobre el **iframe real del preview**
+(`<iframe sandbox="allow-scripts" src="http://127.0.0.1:8010/">`), viewport 1500×850,
+Chromium headless con SwiftShader. La auditoría recorre el árbol de nodos visibles,
+compone el fondo efectivo (cadena de `background-color` con alfa) y calcula la razón
+de contraste WCAG 2.1 (4.5:1 normal · 3:1 texto grande). Además marca superficies
+oscuras (luminancia < 0.22, área > 4000 px²) cuando el tema activo es claro.
+
+| Estado auditado | Fallos de contraste | Superficies con tema equivocado |
+|---|---|---|
+| Oscuro · carga inicial (DEMO FUSIÓN) | 0 | 0 |
+| Oscuro · evento abierto (dossier + briefing) | 0 | 0 |
+| Claro · evento abierto | 0 | 0 |
+| Claro · calendario + gestor de archivo + briefing | 0 | 0 |
+| Claro · aviso (toast) | 0 | 0 |
+
+`pageerror` durante el recorrido: **0**. Conmutador: `html[data-theme="light"]`,
+`body` `rgb(238,244,241)`, texto `rgb(11,26,18)`, `--accent` `#1a6b35`.
+
+### Verificación por píxel (validación del modelo)
+
+Como el modelo de composición alfa no conoce `backdrop-filter`, se contrastó con
+píxeles reales de la captura (dos muestras por celda, esquinas opuestas) en el
+calendario en modo claro:
+
+| Nivel | Píxel medido | Texto (`--text`) | Contador (`opacity .85`) | Umbral |
+|---|---|---|---|---|
+| low | `rgb(216,230,222)` | 13.9:1 | 4.6:1 | 4.5 |
+| moderate | `rgb(210,212,193)` | 11.9:1 | 7.5:1 | 4.5 |
+| high | `rgb(212,194,172)` | 10.4:1 | 7.0:1 | 4.5 |
+| very-high | `rgb(212,154,152)` | 7.6:1 | 5.9:1 | 4.5 |
+| extreme (relleno `.48` + anillo) | `rgb(209,137,135)` (compuesto) | 6.5:1 | 5.2:1 | 4.5 |
+
+### Incidencias corregidas
+
+1. `transition:all` + cambio de tema → color "a medio interpolar" (el tema no
+   parecía cambiar). Corregido con transiciones por propiedad y `theme-switching`.
+2. `background:rgba(var(--shadow-rgb), …)` en calendario y archivo → superficies
+   oscuras en claro. Corregido con el token `--inset-rgb`.
+3. Color de estado del dossier fijado al abrir → recoloreo con `IGNIS_RERENDER`.
+4. Contadores de 6 px a `opacity:.62` → `opacity:.85` en claro (AA).

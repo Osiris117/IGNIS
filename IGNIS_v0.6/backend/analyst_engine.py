@@ -483,7 +483,7 @@ async def build_briefing(
     sentences.append(_sentence("uncertainty", "uncertainty", _t(lang, "uncertainty", items="; ".join(uncertainty)), []))
 
     return {
-        "version": "0.9.0",
+        "version": "0.9.1",
         "engine": "IGNIS Intelligence Analyst",
         "generated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "lang": lang,

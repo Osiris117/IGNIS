@@ -1,6 +1,26 @@
-# IGNIS v0.9 — Intelligence Analyst
+# IGNIS v0.9.1 — Intelligence Analyst (UI/UX, modo claro y accesibilidad)
 
 IGNIS is a cross-platform 3D wildfire/thermal-anomaly intelligence prototype built around NASA FIRMS MODIS/VIIRS observations. v0.9 adds the **Intelligence Analyst**: an explainable, bilingual (ES/EN) briefing per persistent event — every sentence bound to the measured figures that back it (citations with metric, value and source) — plus a **light/dark theme switch** and a **language switch** for the whole interface. It builds on v0.8 (drought percentiles from ERA5, vegetation/fuel from MODIS NDVI, smoke/aerosols from MODIS AOD + OMPS, switchable NASA GIBS layers), v0.7 (Fire Evolution Engine: persistent event IDs, lifecycle states, apparent drift, trails, explainable Event Confidence Score), v0.6 Earth Context Engine and the v0.5 DuckDB + Parquet archive.
+
+## v0.9.1 highlights
+
+- **Modo claro arreglado de raíz**: el conmutador ya no depende de `transition:all`
+  (que dejaba los colores a medio interpolar en Chromium). Tokens en `:root` +
+  `html[data-theme="light"]`, transiciones por propiedad y clase `theme-switching`
+  durante el cambio.
+- **Token de superficie interna** (`--inset-rgb`): calendario y gestor de archivo
+  dejan de pintarse con la sombra (`--shadow-rgb`), que era la causa de las
+  superficies oscuras en modo claro.
+- **Sistema visual (skill UI/UX · HUD/Sci-Fi FUI)**: 9 iconos SVG en línea
+  (sin emojis), foco visible para teclado, `cursor:pointer`, chips que no se
+  parten en dos líneas, scrollbars finas, `prefers-reduced-motion`, responsive
+  1440/1024/760.
+- **Auditoría de contraste automatizada** (Playwright + CDP sobre el iframe del
+  preview, con verificación por píxel): **0 fallos AA** en 5 estados × 2
+  comprobaciones y 0 errores de JavaScript.
+- **Recoloreo vivo al cambiar de tema**: estados de evento, severidad y retícula
+  de calor leen la paleta del tema activo (`IGNIS_RERENDER`).
+- Docs: [`docs/UI_UX_SYSTEM.md`](docs/UI_UX_SYSTEM.md)
 
 ## v0.9 highlights
 

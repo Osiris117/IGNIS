@@ -50,8 +50,8 @@
             <button class="lang-btn active" data-lang="es" title="Español">ES</button>
             <button class="lang-btn" data-lang="en" title="English">EN</button>
           </div>
-          <button class="theme-btn" id="themeToggle" title="Modo claro / oscuro" aria-label="Theme">
-            <span class="theme-icon">◐</span>
+          <button class="theme-btn" id="themeToggle" title="Modo claro / oscuro" aria-label="Theme" aria-pressed="false">
+            <svg class="ico theme-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.2A8.4 8.4 0 1 1 9.8 4a6.8 6.8 0 0 0 10.2 10.2z"/></svg>
           </button>
         </div>
         <div class="clock" id="clock">--:--:-- UTC</div>
@@ -212,7 +212,7 @@
           <div class="detail-kicker" id="detailKicker">HOTSPOT INTELLIGENCE</div>
           <div class="dossier-top-right">
             <div class="detail-severity" id="detailSeverity">HIGH</div>
-            <button class="collapse-btn" id="btnCollapseDossier" title="Minimize panel">▾</button>
+            <button class="collapse-btn" id="btnCollapseDossier" title="Minimize panel" aria-label="Minimize panel"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
           </div>
         </div>
         <div class="dossier-body">
@@ -260,8 +260,8 @@
             </div>
             <div class="evidence-list" id="evoEvidence"></div>
             <div class="evo-actions">
-              <button class="tiny" id="btnReplayTrack">▶ REPLAY LIFECYCLE</button>
-              <button class="tiny" id="btnStopReplay">■ STOP</button>
+              <button class="tiny" id="btnReplayTrack"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.6-5.7M4.5 5.2V10h4.8"/></svg><span>REPLAY LIFECYCLE</span></button>
+              <button class="tiny" id="btnStopReplay"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="1"/></svg><span>STOP</span></button>
             </div>
             <small class="context-caveat" id="evoCaveat">Persistent identity and lifecycle state are analytical labels — not an official incident record.</small>
           </div>
@@ -275,7 +275,7 @@
           <h2>BURNING ACTIVITY CALENDAR</h2>
           <p id="calendarSubtitle">Explore seasonal fire activity through time.</p>
         </div>
-        <button class="close-btn" id="btnCloseCalendar" aria-label="Close calendar">×</button>
+        <button class="close-btn" id="btnCloseCalendar" aria-label="Close calendar"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="calendar-toolbar">
         <div class="segmented calendar-mode" id="calendarMode">
@@ -309,7 +309,7 @@
     <section class="archive-panel glass hidden" id="archivePanel" aria-label="Local Archive Manager">
       <div class="archive-head">
         <div><div class="eyebrow">OFFLINE HISTORICAL DATA ENGINE</div><h2>LOCAL ARCHIVE MANAGER</h2><p>Import FIRMS CSV/TXT/ZIP files into DuckDB and build a Parquet analytical snapshot.</p></div>
-        <button class="close-btn" id="btnCloseArchive" aria-label="Close archive manager">×</button>
+        <button class="close-btn" id="btnCloseArchive" aria-label="Close archive manager"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="archive-stats">
         <div><span>OBSERVATIONS</span><strong id="archiveManagerCount">0</strong></div>
@@ -350,7 +350,7 @@
         </div>
         <div class="analyst-actions">
           <button class="tiny" id="btnAnalystCopy">COPY</button>
-          <button class="close-btn" id="btnAnalystClose">×</button>
+          <button class="close-btn" id="btnAnalystClose" aria-label="Close briefing"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         </div>
       </div>
       <div class="analyst-headline" id="analystHeadline">—</div>
@@ -364,11 +364,11 @@
         <span>TEMPORAL INTELLIGENCE</span>
         <strong id="timelineDate">—</strong>
       </div>
-      <button class="play-btn" id="btnPrev" title="Previous frame">‹</button>
+      <button class="play-btn" id="btnPrev" title="Previous frame" aria-label="Previous frame"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg></button>
       <input id="frameSlider" type="range" min="0" max="0" value="0" step="1" />
-      <button class="play-btn" id="btnNext" title="Next frame">›</button>
+      <button class="play-btn" id="btnNext" title="Next frame" aria-label="Next frame"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg></button>
       <button class="play-btn wide" id="btnPlay">PLAY</button>
-      <div class="phase-tag">V0.9 · INTELLIGENCE ANALYST</div>
+      <div class="phase-tag">V0.9.1 · INTELLIGENCE ANALYST</div>
     </footer>
 
     <div class="method-badge glass">FIRMS · PERSISTENT TRACKS · EVENT EVOLUTION · ERA5-LAND · CAMS · DUCKDB · PARQUET</div>

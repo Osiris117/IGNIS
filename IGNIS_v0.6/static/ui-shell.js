@@ -25,12 +25,18 @@
 
   function applyTheme(next) {
     theme = next === 'light' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', theme);
+    const root = document.documentElement;
+    // Durante el cambio se desactivan las transiciones: si no, el navegador
+    // conserva el color anterior a medio interpolar y el tema "no cambia".
+    root.classList.add('theme-switching');
+    root.setAttribute('data-theme', theme);
     document.body.classList.toggle('theme-light', theme === 'light');
     const btn = $('themeToggle');
     if (btn) {
       btn.classList.toggle('on', theme === 'light');
-      btn.querySelector('.theme-icon').textContent = theme === 'light' ? '☀' : '☾';
+      btn.innerHTML = theme === 'light' ? '<svg class="ico theme-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><g stroke-linecap="round"><path d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M18.7 5.3l-1.8 1.8M5.4 18.7l1.8-1.8"/></g></svg>' : '<svg class="ico theme-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.2A8.4 8.4 0 1 1 9.8 4a6.8 6.8 0 0 0 10.2 10.2z"/></svg>';   // icono SVG, no emoji
+      btn.setAttribute('aria-pressed', theme === 'light' ? 'true' : 'false');
+      btn.setAttribute('aria-label', theme === 'light' ? 'Modo oscuro' : 'Modo claro');
       btn.title = theme === 'light'
         ? (I18N.lang === 'es' ? 'Cambiar a modo oscuro' : 'Switch to dark mode')
         : (I18N.lang === 'es' ? 'Cambiar a modo claro' : 'Switch to light mode');
@@ -38,6 +44,13 @@
     store(THEME_KEY, theme);
     // Cesium necesita un empujón para reajustar el contraste del globo.
     if (window.IGNIS_APPLY_THEME) { try { window.IGNIS_APPLY_THEME(theme); } catch (e) {} }
+    // Las cadenas y paneles que pinta el JS se regeneran con la nueva paleta.
+    if (window.IGNIS_RERENDER) { try { window.IGNIS_RERENDER(); } catch (e) {} }
+    // Y se devuelven las transiciones en el siguiente cuadro.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      void document.body.offsetHeight;
+      root.classList.remove('theme-switching');
+    }));
   }
 
   $('themeToggle') && $('themeToggle').addEventListener('click', () => {

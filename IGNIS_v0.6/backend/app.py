@@ -32,7 +32,7 @@ STATIC_DIR = ROOT / "static"
 DATA_DIR = ROOT / "data"
 load_dotenv(ROOT / ".env")
 
-APP_VERSION = "0.9.0"
+APP_VERSION = "0.9.1"
 app = FastAPI(title="IGNIS — Earth Fire Intelligence", version=APP_VERSION)
 
 # El preview del workspace (y cualquier iframe con sandbox="allow-scripts") expone
