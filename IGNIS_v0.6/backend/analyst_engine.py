@@ -29,6 +29,7 @@ from typing import Any, Iterable
 
 from backend.archive_store import archive_store
 from backend.environment_engine import build_environment_intelligence
+from backend.version import APP_VERSION
 
 # --------------------------------------------------------------------------- #
 # Textos (es / en)
@@ -378,8 +379,10 @@ async def _baseline(track: dict[str, Any], lang: str, years: int) -> tuple[dict[
 
 
 WEIGHTS = {"detections": 26, "persistence": 22, "sensor_independence": 18, "frp": 18, "declared_confidence": 16}
-LEVELS = {"es": {"HIGH": "alta", "MEDIUM": "media", "LOW": "baja"},
-          "en": {"HIGH": "high", "MEDIUM": "medium", "LOW": "low"}}
+# FIX: el motor de confianza emite HIGH/MODERATE/LOW/VERY LOW; faltaban
+# MODERATE y VERY LOW, así que el briefing en español los mostraba en inglés.
+LEVELS = {"es": {"HIGH": "alta", "MODERATE": "media", "MEDIUM": "media", "LOW": "baja", "VERY LOW": "muy baja"},
+          "en": {"HIGH": "high", "MODERATE": "moderate", "MEDIUM": "medium", "LOW": "low", "VERY LOW": "very low"}}
 NAMES = {"es": {"detections": "detecciones", "persistence": "persistencia",
                 "sensor_independence": "independencia de sensores", "frp": "potencia radiativa",
                 "declared_confidence": "confianza declarada"},
@@ -483,7 +486,7 @@ async def build_briefing(
     sentences.append(_sentence("uncertainty", "uncertainty", _t(lang, "uncertainty", items="; ".join(uncertainty)), []))
 
     return {
-        "version": "0.9.1",
+        "version": APP_VERSION,
         "engine": "IGNIS Intelligence Analyst",
         "generated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "lang": lang,

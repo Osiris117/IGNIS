@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>IGNIS v0.7 — Fire Evolution Engine</title>
+  <title>IGNIS v0.9.4 — Fire Intelligence</title>
   <!-- Cesium 1.126 vendorizado localmente (offline); antes: https://cdn.jsdelivr.net/npm/cesium@1.126/Build/Cesium/Widgets/widgets.css -->
   <link href="/static/vendor/cesium/Widgets/widgets.css" rel="stylesheet" />
   <link rel="stylesheet" href="/static/styles.css" />
@@ -38,13 +38,13 @@
         </div>
       </div>
       <div class="top-metrics">
-        <div class="metric"><span>FEED</span><strong id="feedMode">DEMO</strong></div>
+        <div class="metric" data-help="feed"><span>FEED</span><strong id="feedMode">DEMO</strong></div>
         <div class="metric"><span>SENSORS</span><strong id="sensorName">SIMULATED</strong></div>
         <div class="metric"><span>REGION</span><strong id="regionName">MEXICO</strong></div>
         <div class="metric"><span>ARCHIVE</span><strong id="archiveTop">EMPTY</strong></div>
         <div class="metric"><span>EVENTS</span><strong id="eventTop">0</strong></div>
         <div class="metric"><span>STATUS</span><strong class="ok" id="systemStatus">ONLINE</strong></div>
-        <div class="metric"><span>RENDERER</span><strong id="rendererStatus">—</strong></div>
+        <div class="metric" data-help="renderer"><span>RENDERER</span><strong id="rendererStatus">—</strong></div>
         <div class="shell-controls">
           <div class="lang-switch" id="langSwitch" role="group" aria-label="Language">
             <button class="lang-btn active" data-lang="es" title="Español">ES</button>
@@ -59,24 +59,25 @@
     </header>
 
     <aside class="left-panel glass scroll-panel">
-      <div class="section-title"><span>01</span> INTELLIGENCE MODE</div>
+      <div id="dataOriginNote" class="data-origin-note" aria-live="polite"></div>
+      <div class="section-title" data-help="modes"><span>01</span> INTELLIGENCE MODE</div>
       <div class="segmented" id="viewMode">
-        <button class="seg active" data-mode="hotspots">HOTSPOTS</button>
-        <button class="seg" data-mode="heat">FUSION GRID</button>
-        <button class="seg" data-mode="events">FIRE EVENTS</button>
-        <button class="seg" data-mode="evolution">EVOLUTION</button>
+        <button class="seg active" data-mode="hotspots" data-tip="tip_mode_hotspots">HOTSPOTS</button>
+        <button class="seg" data-mode="heat" data-tip="tip_mode_heat">FUSION GRID</button>
+        <button class="seg" data-mode="events" data-tip="tip_mode_events">FIRE EVENTS</button>
+        <button class="seg" data-mode="evolution" data-tip="tip_mode_evolution">EVOLUTION</button>
       </div>
-      <button class="primary evo-launch" id="btnEvolutionDemo"><i></i> LOAD FIRE EVOLUTION (v0.7)</button>
-      <button class="primary evo-launch" id="btnEvolutionArchive" style="background:linear-gradient(135deg,rgba(24,58,48,.98),rgba(10,28,22,.94))!important"><i></i> TRACK LOCAL ARCHIVE · REAL NASA DATA</button>
-      <button class="secondary" id="btnHarmonizedDemo"><i></i> LOAD ANALYTICAL DEMO</button>
-      <button class="secondary" id="btnHarmonize"><i></i> NASA · HARMONIZE REGION</button>
-      <button class="secondary calendar-launch" id="btnCalendar"><i></i> BURNING ACTIVITY CALENDAR</button>
-      <button class="secondary archive-launch" id="btnArchive"><i></i> LOCAL ARCHIVE MANAGER</button>
-      <button class="secondary" id="btnExport"><i></i> EXPORT INTELLIGENCE SNAPSHOT</button>
+      <button class="primary evo-launch" id="btnEvolutionDemo" data-tip="tip_evo_demo"><i></i> LOAD FIRE EVOLUTION (v0.7)</button>
+      <button class="primary evo-launch" id="btnEvolutionArchive" data-tip="tip_evo_archive" style="background:linear-gradient(135deg,rgba(24,58,48,.98),rgba(10,28,22,.94))!important"><i></i> TRACK LOCAL ARCHIVE · REAL NASA DATA</button>
+      <button class="secondary" id="btnHarmonizedDemo" data-tip="tip_demo"><i></i> LOAD ANALYTICAL DEMO</button>
+      <button class="secondary" id="btnHarmonize" data-tip="tip_harmonize"><i></i> NASA · HARMONIZE REGION</button>
+      <button class="secondary calendar-launch" id="btnCalendar" data-tip="tip_calendar"><i></i> BURNING ACTIVITY CALENDAR</button>
+      <button class="secondary archive-launch" id="btnArchive" data-tip="tip_archive"><i></i> LOCAL ARCHIVE MANAGER</button>
+      <button class="secondary" id="btnExport" data-tip="tip_export"><i></i> EXPORT INTELLIGENCE SNAPSHOT</button>
 
       <div class="divider"></div>
-      <div class="section-title"><span>02</span> AREA OF INTEREST</div>
-      <label class="field-label" for="regionPreset">REGION PRESET</label>
+      <div class="section-title" data-help="area"><span>02</span> AREA OF INTEREST</div>
+      <label class="field-label" for="regionPreset" data-help="area">REGION PRESET</label>
       <select id="regionPreset">
         <option value="mexico">Mexico</option>
         <option value="amazon">Amazon Basin</option>
@@ -85,12 +86,12 @@
         <option value="australia">Australia</option>
         <option value="viewport">Current viewport</option>
       </select>
-      <button class="tiny full" id="btnFlyRegion">FLY TO REGION</button>
+      <button class="tiny full" id="btnFlyRegion" data-tip="tip_fly">FLY TO REGION</button>
 
-      <label class="field-label" for="historyDate">TIMELINE START DATE</label>
-      <input id="historyDate" type="date" />
-      <label class="field-label" for="historyDays">WINDOW</label>
-      <select id="historyDays">
+      <label class="field-label" for="historyDate" data-help="date">TIMELINE START DATE</label>
+      <input id="historyDate" type="date" data-tip="tip_date" />
+      <label class="field-label" for="historyDays" data-help="window">WINDOW</label>
+      <select id="historyDays" data-tip="tip_window">
         <option value="1">1 DAY</option>
         <option value="3">3 DAYS</option>
         <option value="5" selected>5 DAYS</option>
@@ -98,41 +99,42 @@
       <div class="microcopy">Historical requests use FIRMS Standard Processing sources. Calendar cells can drive this date automatically. Event mode clusters nearby thermal anomalies; it does not create official incident perimeters.</div>
 
       <div class="divider"></div>
-      <div class="section-title"><span>03</span> SENSOR FUSION</div>
-      <label class="toggle-row"><input type="checkbox" id="srcModis" checked><span></span> MODIS Standard</label>
-      <label class="toggle-row"><input type="checkbox" id="srcSnpp"><span></span> VIIRS Suomi-NPP <em>legacy</em></label>
-      <label class="toggle-row"><input type="checkbox" id="srcN20" checked><span></span> VIIRS NOAA-20</label>
-      <label class="field-label" for="gridSize">COMMON GRID</label>
-      <select id="gridSize">
+      <div class="section-title" data-help="sensors"><span>03</span> SENSOR FUSION</div>
+      <label class="toggle-row"><input type="checkbox" id="srcModis" checked data-tip="tip_src"><span></span> MODIS Standard</label>
+      <label class="toggle-row"><input type="checkbox" id="srcSnpp" data-tip="tip_src"><span></span> VIIRS Suomi-NPP <em>legacy</em></label>
+      <label class="toggle-row"><input type="checkbox" id="srcN20" checked data-tip="tip_src"><span></span> VIIRS NOAA-20</label>
+      <label class="field-label" for="gridSize" data-help="grid">COMMON GRID</label>
+      <select id="gridSize" data-tip="tip_grid">
         <option value="0.06">~6 km · fine</option>
         <option value="0.10" selected>~11 km · balanced</option>
         <option value="0.20">~22 km · regional</option>
       </select>
 
       <div class="divider"></div>
-      <div class="section-title"><span>05</span> ENVIRONMENTAL LAYERS <em class="env-hint">requiere internet</em></div>
+      <div class="section-title" data-help="layers"><span>05</span> ENVIRONMENTAL LAYERS <em class="env-hint">needs internet</em></div>
       <div class="env-toggle-grid" id="envLayers">
-        <button class="env-chip" data-env="aerosol">AEROSOLES</button>
-        <button class="env-chip" data-env="ndvi">VEGETACIÓN</button>
-        <button class="env-chip" data-env="truecolor">COLOR REAL</button>
-        <button class="env-chip" data-env="pyro">PIRO-CB · HUMO</button>
+        <button class="env-chip" type="button" aria-pressed="false" data-env="aerosol" data-tip="tip_layer_aerosol">AEROSOLS</button>
+        <button class="env-chip" type="button" aria-pressed="false" data-env="ndvi" data-tip="tip_layer_ndvi">VEGETATION</button>
+        <button class="env-chip" type="button" aria-pressed="false" data-env="truecolor" data-tip="tip_layer_truecolor">TRUE COLOR</button>
+        <button class="env-chip" type="button" aria-pressed="false" data-env="pyro" data-tip="tip_layer_pyro">PYRO-CB · SMOKE</button>
       </div>
-      <div class="microcopy" id="envNote">Las capas usan NASA GIBS para la fecha del timeline. Sin internet quedan inactivas; el análisis no depende de ellas.</div>
+      <div id="envLayerStatus" class="env-layer-status" aria-live="polite"></div>
+      <div class="microcopy" id="envNote">NASA GIBS layers follow the timeline date. Without internet they are inactive; analysis does not depend on them.</div>
 
       <div class="divider"></div>
-      <div class="section-title"><span>06</span> INTELLIGENCE ANALYST</div>
-      <button class="primary analyst-launch" id="btnAnalyst"><i></i> GENERATE BRIEFING</button>
+      <div class="section-title" data-help="analyst"><span>06</span> INTELLIGENCE ANALYST</div>
+      <button class="primary analyst-launch" id="btnAnalyst" data-tip="tip_analyst"><i></i> GENERATE BRIEFING</button>
       <div class="microcopy" id="analystHint">Select a persistent event to generate its explainable briefing. Every sentence carries its citations.</div>
 
       <div class="divider"></div>
-      <div class="section-title"><span>04</span> HOTSPOT FILTERS</div>
-      <label class="toggle-row"><input type="checkbox" id="moderate" checked><span></span> Moderate</label>
-      <label class="toggle-row"><input type="checkbox" id="high" checked><span></span> High</label>
-      <label class="toggle-row"><input type="checkbox" id="critical" checked><span></span> Critical</label>
+      <div class="section-title" data-help="filters"><span>04</span> HOTSPOT FILTERS</div>
+      <label class="toggle-row"><input type="checkbox" id="moderate" checked data-tip="tip_sev"><span></span> Moderate</label>
+      <label class="toggle-row"><input type="checkbox" id="high" checked data-tip="tip_sev"><span></span> High</label>
+      <label class="toggle-row"><input type="checkbox" id="critical" checked data-tip="tip_sev"><span></span> Critical</label>
     </aside>
 
     <aside class="right-panel glass scroll-panel">
-      <div class="section-title"><span>NOW</span> BURNING ACTIVITY</div>
+      <div class="section-title" data-help="activity"><span>NOW</span> BURNING ACTIVITY</div>
       <div class="big-number" id="fireCount">0</div>
       <div class="subtext" id="countLabel">VISIBLE DETECTIONS</div>
 
@@ -147,8 +149,8 @@
       <div class="risk-row"><span>AGREEMENT CELLS</span><strong id="agreementCount">0</strong></div>
 
       <div class="divider"></div>
-      <div class="section-title"><span>Δ</span> HISTORICAL ANOMALY</div>
-      <button class="secondary compact" id="btnBaseline">COMPARE WITH PRIOR YEARS</button>
+      <div class="section-title" data-help="baseline"><span>Δ</span> HISTORICAL ANOMALY</div>
+      <button class="secondary compact" id="btnBaseline" data-tip="tip_baseline">COMPARE WITH PRIOR YEARS</button>
       <div class="anomaly-card" id="anomalyCard">
         <div class="anomaly-value" id="anomalyValue">—</div>
         <div>
@@ -158,32 +160,32 @@
       </div>
 
       <div class="divider"></div>
-      <div class="section-title"><span>CAL</span> SELECTED PERIOD</div>
+      <div class="section-title" data-help="period"><span>CAL</span> SELECTED PERIOD</div>
       <div class="period-card">
         <strong id="selectedPeriod">NONE</strong>
         <span id="selectedPeriodScore">Open the Burning Activity Calendar</span>
       </div>
 
       <div class="divider"></div>
-      <div class="section-title"><span>DB</span> LOCAL ARCHIVE</div>
+      <div class="section-title" data-help="archive"><span>DB</span> LOCAL ARCHIVE</div>
       <div class="archive-mini">
         <strong id="archiveCount">0</strong><span>OBSERVATIONS</span>
         <small id="archiveCoverage">No historical files imported</small>
       </div>
 
       <div class="divider"></div>
-      <div class="section-title"><span>EVO</span> FIRE EVOLUTION ENGINE</div>
+      <div class="section-title" data-help="evolution"><span>EVO</span> FIRE EVOLUTION ENGINE</div>
       <div class="evo-summary" id="evoSummary">
         <span class="chip">NO TRACKS</span><small>Load the evolution demo or a multi-day dataset.</small>
       </div>
       <div class="evo-list" id="evoList"><div class="source-empty">Persistent event identities will appear here.</div></div>
 
       <div class="divider"></div>
-      <div class="section-title"><span>EVT</span> CANDIDATE FIRE EVENTS</div>
+      <div class="section-title" data-help="events"><span>EVT</span> CANDIDATE FIRE EVENTS</div>
       <div class="event-list" id="eventList"><div class="source-empty">Load a multi-day dataset to build candidate events.</div></div>
 
       <div class="divider"></div>
-      <div class="section-title"><span>CTX</span> ENVIRONMENTAL CONTEXT</div>
+      <div class="section-title" data-help="context"><span>CTX</span> ENVIRONMENTAL CONTEXT</div>
       <div class="context-card" id="contextCard">
         <div class="context-placeholder" id="contextPlaceholder">SELECT A FIRE EVENT<br><small>Weather, dryness and recent air-quality context will appear here.</small></div>
         <div class="hidden" id="contextContent">
@@ -231,9 +233,9 @@
           <div class="dossier-col">
             <dl>
               <div><dt>LAT / LON</dt><dd id="detailCoords">—</dd></div>
-              <div><dt>FRP / SCORE</dt><dd id="detailFrp">—</dd></div>
-              <div><dt>CONFIDENCE</dt><dd id="detailConfidence">—</dd></div>
-              <div><dt>ACQUIRED</dt><dd id="detailTime">—</dd></div>
+              <div><dt data-help="frp">FRP / SCORE</dt><dd id="detailFrp">—</dd></div>
+              <div><dt data-help="confidence">CONFIDENCE</dt><dd id="detailConfidence">—</dd></div>
+              <div><dt data-help="acquired">ACQUIRED</dt><dd id="detailTime">—</dd></div>
               <div><dt>SENSOR</dt><dd id="detailSatellite">—</dd></div>
             </dl>
             <div class="evo-detail hidden" id="evoDetail">
@@ -255,7 +257,7 @@
               <span class="evo-identity" id="evoIdentity">—</span>
             </div>
             <div class="confidence-block">
-              <div class="confidence-head"><span>EVENT CONFIDENCE</span><strong id="evoConfidence">—</strong></div>
+              <div class="confidence-head" data-help="event_confidence"><span>EVENT CONFIDENCE</span><strong id="evoConfidence">—</strong></div>
               <div class="confidence-bars" id="evoBars"></div>
             </div>
             <div class="evidence-list" id="evoEvidence"></div>
@@ -272,7 +274,7 @@
       <div class="calendar-head">
         <div>
           <div class="eyebrow">HISTORICAL PATTERN EXPLORER</div>
-          <h2>BURNING ACTIVITY CALENDAR</h2>
+          <h2 data-help="calendar">BURNING ACTIVITY CALENDAR</h2>
           <p id="calendarSubtitle">Explore seasonal fire activity through time.</p>
         </div>
         <button class="close-btn" id="btnCloseCalendar" aria-label="Close calendar"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -308,7 +310,7 @@
 
     <section class="archive-panel glass hidden" id="archivePanel" aria-label="Local Archive Manager">
       <div class="archive-head">
-        <div><div class="eyebrow">OFFLINE HISTORICAL DATA ENGINE</div><h2>LOCAL ARCHIVE MANAGER</h2><p>Import FIRMS CSV/TXT/ZIP files into DuckDB and build a Parquet analytical snapshot.</p></div>
+        <div><div class="eyebrow">OFFLINE HISTORICAL DATA ENGINE</div><h2 data-help="archive">LOCAL ARCHIVE MANAGER</h2><p>Import FIRMS CSV/TXT/ZIP files into DuckDB and build a Parquet analytical snapshot.</p></div>
         <button class="close-btn" id="btnCloseArchive" aria-label="Close archive manager"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="archive-stats">
@@ -319,7 +321,7 @@
       </div>
       <div class="archive-body">
         <div class="archive-upload">
-          <div class="section-title"><span>01</span> IMPORT NASA FIRMS ARCHIVE</div>
+          <div class="section-title" data-help="archive_import"><span>01</span> IMPORT NASA FIRMS ARCHIVE</div>
           <label class="field-label" for="archiveSource">SENSOR / SOURCE IN FILE</label>
           <select id="archiveSource">
             <option value="MODIS_SP">MODIS · Standard Processing</option>
@@ -333,7 +335,7 @@
           <p class="archive-help">For very large archives you can also run <code>python import_firms_archive.py FILE --source MODIS_SP</code>.</p>
         </div>
         <div class="archive-sources">
-          <div class="section-title"><span>02</span> LOCAL COVERAGE</div>
+          <div class="section-title" data-help="archive_coverage"><span>02</span> LOCAL COVERAGE</div>
           <div id="archiveSourceList" class="source-list"><div class="source-empty">No files imported yet.</div></div>
           <div class="archive-note">The local calendar uses complete imported observations for each month. It does not spend FIRMS API quota and works offline after import.</div>
         </div>
@@ -359,16 +361,16 @@
       <div class="analyst-foot" id="analystFoot"></div>
     </section>
 
-    <footer class="timeline glass">
+    <footer class="timeline glass" data-help="timeline">
       <div class="timeline-heading">
         <span>TEMPORAL INTELLIGENCE</span>
         <strong id="timelineDate">—</strong>
       </div>
-      <button class="play-btn" id="btnPrev" title="Previous frame" aria-label="Previous frame"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg></button>
-      <input id="frameSlider" type="range" min="0" max="0" value="0" step="1" />
-      <button class="play-btn" id="btnNext" title="Next frame" aria-label="Next frame"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg></button>
-      <button class="play-btn wide" id="btnPlay">PLAY</button>
-      <div class="phase-tag">V0.9.1 · INTELLIGENCE ANALYST</div>
+      <button class="play-btn" id="btnPrev" data-tip="tip_prev" aria-label="Previous frame"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg></button>
+      <input id="frameSlider" type="range" min="0" max="0" value="0" step="1" data-tip="tip_slider" />
+      <button class="play-btn" id="btnNext" data-tip="tip_next" aria-label="Next frame"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg></button>
+      <button class="play-btn wide" id="btnPlay" data-tip="tip_play">PLAY</button>
+      <div class="phase-tag">V0.9.4 · INTELLIGENCE ANALYST</div>
     </footer>
 
     <div class="method-badge glass">FIRMS · PERSISTENT TRACKS · EVENT EVOLUTION · ERA5-LAND · CAMS · DUCKDB · PARQUET</div>
@@ -430,5 +432,6 @@
   <script src="/static/i18n.js"></script>
   <script src="/static/ui-shell.js"></script>
   <script src="/static/app.js"></script>
+  <script src="/static/help.js"></script>
 </body>
 </html>

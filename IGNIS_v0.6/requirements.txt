@@ -4,3 +4,4 @@ httpx==0.28.1
 python-dotenv==1.0.1
 duckdb>=1.4.1,<2.0
 python-multipart>=0.0.20,<1.0
+Pillow>=10.2,<13   # muestreo de píxeles GIBS (backend/environment_engine.py)

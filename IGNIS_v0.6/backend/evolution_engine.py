@@ -27,6 +27,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from backend.version import APP_VERSION
+
 EARTH_RADIUS_KM = 6371.0088
 
 MATCH_KM = float(os.getenv("IGNIS_TRACK_MATCH_KM", "60"))
@@ -34,11 +36,15 @@ MAX_GAP_HOURS = float(os.getenv("IGNIS_TRACK_MAX_GAP_HOURS", "48"))
 REGISTRY_GAP_HOURS = float(os.getenv("IGNIS_TRACK_REGISTRY_GAP_HOURS", "168"))  # 7 days
 STATE_DELTA = float(os.getenv("IGNIS_TRACK_STATE_DELTA", "0.20"))
 
-REGISTRY_PATH = Path(os.getenv("IGNIS_TRACK_REGISTRY", "data/events/track_registry.json"))
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+REGISTRY_PATH = Path(os.getenv("IGNIS_TRACK_REGISTRY") or _PROJECT_ROOT / "data" / "events" / "track_registry.json")
 _REGISTRY_LOCK = threading.Lock()
 
 COMPASS = ("N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
            "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW")
+
+# Orden real de severidad visual (para no depender del orden alfabético).
+_SEVERITY_RANK = {"moderate": 0, "high": 1, "critical": 2}
 
 
 # --------------------------------------------------------------------------- #
@@ -352,7 +358,12 @@ def track_evolution(
                 "total_frp": round(sum(s["total_frp"] for s in timeline), 1),
                 "max_frp": round(max(s["max_frp"] for s in timeline), 1),
                 "mean_confidence": round(sum(track["confidence_samples"]) / max(1, len(track["confidence_samples"])), 1),
-                "severity": max((s.get("severity") or "moderate") for s in timeline),
+                # FIX: max() lexicográfico devolvía "moderate" > "high" > "critical";
+                # la severidad de la pista debe ser la MÁS ALTA observada.
+                "severity": max(
+                    ((s.get("severity") or "moderate") for s in timeline),
+                    key=lambda v: _SEVERITY_RANK.get(str(v).lower(), 0),
+                ),
                 "families": sorted(track["families"]),
                 "sources": sorted(track["sources"]),
                 "peak": {"date": peak["date"], "total_frp": round(peak["total_frp"], 1),
@@ -394,7 +405,7 @@ def track_evolution(
     for track in out:
         statuses[track["status"]] = statuses.get(track["status"], 0) + 1
     return {
-        "version": "0.7.0",
+        "version": APP_VERSION,
         "engine": "fire-evolution",
         "session": session,
         "frames": date_strs,

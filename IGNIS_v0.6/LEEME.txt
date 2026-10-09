@@ -1,0 +1,56 @@
+IGNIS v0.9.4 — paquete de auditoría y reparación
+
+CONTENIDO
+  IGNIS_v0.6/              Proyecto completo, listo para iniciar.
+  IGNIS_v0.6/FALLAS_Y_MEJORAS.md
+                           Causas, cambios y resultados de verificación.
+  IGNIS_v0.9.4.patch        Cambios aplicables al commit 86b7a9a de
+                           https://github.com/Osiris117/IGNIS.
+  evidencia_ui/             Capturas y resultados.json del pase final en Chromium.
+
+INICIO RÁPIDO
+  macOS:   abrir IGNIS_v0.6/INICIAR_IGNIS.command
+  Linux:   cd IGNIS_v0.6 && ./INICIAR_IGNIS.sh
+  Windows: abrir IGNIS_v0.6/INICIAR_IGNIS.bat
+  Manual macOS/Linux: cd IGNIS_v0.6 && python3 start_ignis.py
+  Manual Windows:     cd IGNIS_v0.6 && py -3 start_ignis.py
+
+El iniciador instala las dependencias en .venv y muestra la dirección local.
+El modo demo no necesita clave. Para datos NASA FIRMS en vivo, copia
+.env.example a .env y configura FIRMS_MAP_KEY. El archivo histórico local
+data/archive/ no se incluye en este paquete; se importa desde la aplicación.
+
+APLICAR SOLO EL PARCHE A UN CLON LIMPIO
+  git clone https://github.com/Osiris117/IGNIS.git
+  cd IGNIS
+  git switch -c codex/ignis-v0.9.4 86b7a9a
+  git apply --check ../IGNIS_v0.9.4.patch
+  git apply ../IGNIS_v0.9.4.patch
+
+Las pruebas de navegador usan Playwright con Chromium y están en
+IGNIS_v0.6/tools/. Con el servidor local activo, en macOS/Linux:
+  cd IGNIS_v0.6
+  .venv/bin/python -m pip install playwright
+  .venv/bin/python -m playwright install chromium
+  .venv/bin/python tools/ui_audit.py --url http://127.0.0.1:8000/ \
+    --output /tmp/ignis-ui-audit
+  .venv/bin/python tools/ui_offline_audit.py --url http://127.0.0.1:8000/ \
+    --output /tmp/ignis-ui-audit
+  .venv/bin/python tools/ui_language_audit.py --url http://127.0.0.1:8000/ \
+    --output /tmp/ignis-ui-audit
+  .venv/bin/python tools/ui_timeline_audit.py --url http://127.0.0.1:8000/ \
+    --output /tmp/ignis-ui-audit
+  .venv/bin/python tools/ui_help_audit.py --url http://127.0.0.1:8000/ \
+    --output /tmp/ignis-ui-audit
+  .venv/bin/python tools/ui_playback_smoke.py --url http://127.0.0.1:8000/ \
+    --output /tmp/ignis-ui-audit
+  .venv/bin/python tools/ui_continuity_smoke.py --url http://127.0.0.1:8000/ \
+    --output /tmp/ignis-ui-audit
+  .venv/bin/python tools/backend_audit.py
+
+Si el iniciador muestra otro puerto, sustituye 8000 en todos los comandos UI
+por ese puerto. En Windows, usa .venv\Scripts\python.exe para estas pruebas.
+
+Los resultados de esta auditoría se documentan en FALLAS_Y_MEJORAS.md.
+El reporte incluye la latencia de entrada que aún persiste en SwiftShader
+con carga gráfica, y las verificaciones no ejecutadas en este entorno.

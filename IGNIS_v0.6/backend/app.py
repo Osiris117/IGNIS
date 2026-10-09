@@ -4,12 +4,14 @@ import asyncio
 import csv
 import io
 import json
+import logging
 import math
 import os
 import random
 import statistics
 import time
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable
@@ -18,7 +20,7 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from backend.archive_store import ARCHIVE_SOURCES, INBOX_DIR, archive_store
@@ -26,14 +28,27 @@ from backend.context_engine import build_environment_context, cluster_fire_event
 from backend.analyst_engine import build_briefing
 from backend.environment_engine import LAYERS as ENV_LAYERS, build_environment_intelligence
 from backend.evolution_engine import track_evolution
+from backend.version import APP_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = ROOT / "static"
 DATA_DIR = ROOT / "data"
 load_dotenv(ROOT / ".env")
 
-APP_VERSION = "0.9.1"
-app = FastAPI(title="IGNIS — Earth Fire Intelligence", version=APP_VERSION)
+@asynccontextmanager
+async def lifespan(service: FastAPI):
+    # Reuse the connection pool while Cesium requests many tiles at once.
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(12.0, connect=4.0),
+        follow_redirects=True,
+        limits=httpx.Limits(max_connections=48, max_keepalive_connections=24),
+    ) as client:
+        service.state.gibs_client = client
+        yield
+
+
+app = FastAPI(title="IGNIS — Earth Fire Intelligence", version=APP_VERSION, lifespan=lifespan)
+logger = logging.getLogger(__name__)
 
 # El preview del workspace (y cualquier iframe con sandbox="allow-scripts") expone
 # el documento con ORIGEN OPACO ("null"): toda petición —incluido el propio
@@ -430,6 +445,8 @@ def _demo_frames() -> list[dict[str, Any]]:
             item["frp"] = round(float(item.get("frp", 0)) * (0.72 + 0.13 * offset + (idx % 4) * 0.03), 2)
             item["source"] = source_cycle[(idx + offset) % len(source_cycle)]
             item["family"] = sensor_family(item["source"], item.get("instrument", ""))
+            item["synthetic"] = True
+            item["satellite"] = "IGNIS_DEMO"
             fires.append(item)
             # Add a second sensor observation near the same cell to demonstrate agreement.
             if idx % keep_mod == 0:
@@ -472,6 +489,7 @@ def config() -> dict[str, Any]:
         default_source = "VIIRS_NOAA21_NRT"
     return {
         "version": APP_VERSION,
+        "current_date": date.today().isoformat(),
         "firms_key_configured": bool(os.getenv("FIRMS_MAP_KEY", "").strip()),
         "default_source": default_source,
         "sources": [{"id": key, "label": value} for key, value in SOURCES.items()],
@@ -495,6 +513,11 @@ def config() -> dict[str, Any]:
 def demo_fires() -> JSONResponse:
     with open(DATA_DIR / "sample_fires.json", "r", encoding="utf-8") as f:
         payload = json.load(f)
+    payload["synthetic"] = True
+    payload["warning"] = "Synthetic IGNIS demonstration; these are not NASA observations or confirmed fires."
+    for fire in payload.get("fires", []):
+        fire["synthetic"] = True
+        fire["satellite"] = "IGNIS_DEMO"
     payload["version"] = APP_VERSION
     return JSONResponse(payload)
 
@@ -505,6 +528,7 @@ def demo_harmonized() -> JSONResponse:
     all_rows = [fire for frame in frames for fire in frame.get("fires", [])]
     return JSONResponse({
         "mode": "demo-harmonized",
+        "synthetic": True,
         "version": APP_VERSION,
         "method": "common-grid + within-sensor normalization + candidate spatiotemporal events",
         "grid_deg": 0.12,
@@ -711,6 +735,17 @@ REGIONS: dict[str, dict[str, Any]] = {
     "australia": {"label": "Australia", "area": "112,-44,154,-10", "camera": [134.0, -25.0, 6200000], "season": [11, 12, 1, 2]},
 }
 
+# Cuatro centros interiores por región. La demo histórica no debe interpretar
+# todo el rectángulo de cámara como tierra: Golfo/Pacífico/Mediterráneo quedaban
+# dentro de esos rectángulos y producían incendios sintéticos en el mar.
+DEMO_LAND_CENTERS: dict[str, tuple[tuple[float, float], ...]] = {
+    "mexico": ((25.15, -105.12), (28.60, -106.10), (19.60, -101.70), (16.40, -92.60)),
+    "amazon": ((-11.50, -55.70), (-6.90, -52.40), (-10.00, -63.00), (-9.50, -68.00)),
+    "california": ((40.30, -122.00), (39.30, -120.60), (37.20, -119.50), (34.50, -117.40)),
+    "med": ((39.30, -7.30), (39.70, -4.40), (42.60, 12.70), (39.30, 22.40)),
+    "australia": ((-29.00, 123.00), (-25.00, 134.00), (-31.00, 147.00), (-18.00, 142.00)),
+}
+
 
 def _calendar_level(score: float) -> str:
     if score >= 80:
@@ -781,6 +816,7 @@ def _calendar_demo_payload(region: str, start_year: int, end_year: int) -> dict[
     return {
         "version": APP_VERSION,
         "mode": "demo-calendar",
+        "synthetic": True,
         "region": region,
         "region_label": REGIONS[region]["label"],
         "area": REGIONS[region]["area"],
@@ -913,8 +949,7 @@ async def calendar_sample(
 def _region_demo_frames(region: str, start: date, days: int) -> list[dict[str, Any]]:
     if region not in REGIONS:
         raise HTTPException(400, f"Unknown region preset: {region}")
-    west, south, east, north = map(float, REGIONS[region]["area"].split(","))
-    width, height = east - west, north - south
+    centers = DEMO_LAND_CENTERS[region]
     source_cycle = ["MODIS_SP", "VIIRS_NOAA20_SP", "MODIS_SP", "VIIRS_NOAA20_SP"]
     frames: list[dict[str, Any]] = []
     for offset in range(days):
@@ -923,13 +958,12 @@ def _region_demo_frames(region: str, start: date, days: int) -> list[dict[str, A
         point_count = max(12, min(95, int(10 + monthly_score * 0.72)))
         fires: list[dict[str, Any]] = []
         for idx in range(point_count):
-            cluster = idx % 4
-            cx = [0.28, 0.47, 0.68, 0.78][cluster]
-            cy = [0.42, 0.64, 0.31, 0.56][cluster]
-            jitter_x = (((idx * 37 + d.day * 11 + offset * 7) % 101) / 100.0 - 0.5) * 0.20
-            jitter_y = (((idx * 53 + d.month * 13 + offset * 5) % 97) / 96.0 - 0.5) * 0.20
-            lon = west + width * max(0.03, min(0.97, cx + jitter_x))
-            lat = south + height * max(0.03, min(0.97, cy + jitter_y))
+            lat_center, lon_center = centers[idx % len(centers)]
+            # <10 km around each inland seed; deterministic across restarts.
+            jitter_lon = (((idx * 37 + d.day * 11 + offset * 7) % 101) / 100.0 - 0.5) * 0.16
+            jitter_lat = (((idx * 53 + d.month * 13 + offset * 5) % 97) / 96.0 - 0.5) * 0.16
+            lon = lon_center + jitter_lon
+            lat = lat_center + jitter_lat
             source = source_cycle[(idx + offset) % len(source_cycle)]
             confidence = 42 + ((idx * 17 + d.day) % 57)
             frp = 7.0 + monthly_score * (0.22 + ((idx % 11) / 35.0))
@@ -941,7 +975,7 @@ def _region_demo_frames(region: str, start: date, days: int) -> list[dict[str, A
                 "date": d.isoformat(), "time": str(900 + (idx * 13) % 900).zfill(4),
                 "satellite": "DEMO", "instrument": sensor_family(source), "daynight": "D",
                 "source": source, "family": sensor_family(source), "severity": severity,
-                "severity_score": round(severity_score, 1),
+                "severity_score": round(severity_score, 1), "synthetic": True,
             })
         cells, summary = harmonize_day(fires, 0.12)
         frames.append({"date": d.isoformat(), "fires": fires, "cells": cells, "summary": summary})
@@ -959,6 +993,7 @@ def demo_harmonized_date(
     all_rows = [fire for frame in frames for fire in frame.get("fires", [])]
     return JSONResponse({
         "mode": "demo-harmonized-historical",
+        "synthetic": True,
         "version": APP_VERSION,
         "method": "synthetic common-grid temporal demonstration + candidate events",
         "region": region,
@@ -1137,6 +1172,7 @@ def events_demo() -> JSONResponse:
     return JSONResponse({
         "version": APP_VERSION,
         "mode": "demo-candidate-events",
+        "synthetic": True,
         "events": candidate_events(rows),
         "caveat": "Synthetic demo clusters; not NASA observations and not official incidents.",
     })
@@ -1220,18 +1256,18 @@ def _evolution_demo_frames(region: str = "mexico", days: int = 5) -> list[dict[s
                     "brightness": round(300 + frp * 0.35, 2), "confidence": confidence,
                     "confidence_raw": conf_raw, "date": frame_date,
                     "time": f"{rng.randint(1, 23):02d}{rng.choice(['00', '12', '24', '36', '48'])}",
-                    "satellite": sat, "instrument": instrument,
+                    "satellite": "IGNIS_DEMO", "instrument": instrument,
                     "daynight": rng.choice(["D", "N"]), "source": source,
                     "family": sensor_family(source, instrument),
                     "severity": severity, "severity_score": round(severity_score, 1),
-                    "seed": seed["name"],
+                    "seed": seed["name"], "synthetic": True,
                 })
         cells, summary = harmonize_day(fires, 0.10)
         frames.append({"date": frame_date, "fires": fires, "cells": cells, "summary": summary})
     return frames
 
 
-def _evolution_from_frames(frames: list[dict[str, Any]], session: str, min_points: int = 2) -> dict[str, Any]:
+def _evolution_from_frames(frames: list[dict[str, Any]], session: str) -> dict[str, Any]:
     per_frame = [{"date": f["date"], "events": candidate_events(f.get("fires", []))} for f in frames]
     engine = track_evolution(per_frame, session=session)
     # Deriva los indicadores de panel desde los eventos cuando el frame no trae summary
@@ -1263,13 +1299,14 @@ def _evolution_from_frames(frames: list[dict[str, Any]], session: str, min_point
 def analyst_sample(lang: str = Query("es", pattern="^(es|en)$")) -> JSONResponse:
     """Briefing de ejemplo para que la interfaz pueda mostrarlo sin selección previa."""
     frames = _evolution_demo_frames("mexico", 5)
-    engine = _evolution_from_frames(frames, session="DEMO-MEXICO", min_points=2)
+    engine = _evolution_from_frames(frames, session="DEMO-MEXICO")
     tracks = [t for t in engine["tracks"] if t["status"] != "EXTINCT"] or engine["tracks"]
     if not tracks:
         raise HTTPException(503, "No tracks available for a sample briefing.")
     return JSONResponse({
         "version": APP_VERSION,
         "mode": "analyst-sample",
+        "synthetic": True,
         "track": tracks[0],
         "usage": "POST /api/analyst/briefing with {\"track\": <track>, \"lang\": \"es|en\"}",
         "lang": lang,
@@ -1313,22 +1350,348 @@ async def analyst_briefing(payload: dict[str, Any]) -> JSONResponse:
 
 @app.get("/api/environment/catalog")
 def environment_catalog() -> JSONResponse:
-    """Capas GIBS verificadas (con su TileMatrixSet correcto) para la UI."""
+    """Catálogo de visualización Mercator y muestreo analítico geográfico."""
     return JSONResponse({
         "version": APP_VERSION,
         "provider": "NASA GIBS (WMTS, sin API key)",
-        "url_template": "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/{layer}/default/{date}/{tms}/{matrix}/{row}/{col}.{ext}",
-        "note_for_ui": "El orden es TileRow/TileCol (fila = latitud).",
+        "url_template": "/api/gibs/tile/{layer}/{date}/{z}/{y}/{x}.{ext}",
+        "projection": "EPSG:3857",
+        "note_for_ui": "Las capas de visualización usan WebMercatorTilingScheme; el orden es z/y/x. Las demás capas se usan sólo para muestreo analítico EPSG:4326.",
         "layers": [
             {
                 "key": key, "id": cfg["id"], "label": cfg.get("label", cfg["id"]),
-                "role": cfg["role"], "tms": cfg["tms"], "matrix": cfg["tile_matrix_id"],
+                "role": cfg["role"],
+                "overlay_available": cfg["id"] in GIBS_3857,
+                "projection": "EPSG:3857" if cfg["id"] in GIBS_3857 else "EPSG:4326",
+                "tms": GIBS_3857[cfg["id"]]["tms"] if cfg["id"] in GIBS_3857 else cfg["tms"],
+                "max_level": GIBS_3857[cfg["id"]]["max_level"] if cfg["id"] in GIBS_3857 else cfg["level"],
                 "colormap": cfg.get("colormap"), "units": cfg["units"],
-                "extension": "jpg" if "TrueColor" in cfg["id"] else "png",
+                "extension": "png" if cfg["id"] in GIBS_TRANSPARENT else GIBS_3857[cfg["id"]]["ext"] if cfg["id"] in GIBS_3857 else "png",
+                "sampling_tms": cfg["tms"],
+                "sampling_matrix": cfg["tile_matrix_id"],
             }
             for key, cfg in ENV_LAYERS.items()
         ],
     })
+
+
+# --------------------------------------------------------------------------- #
+# v0.9.3 — Proxy de tiles GIBS (mismo origen)
+# En previews/iframes con sandbox u origen opaco, las peticiones directas del
+# navegador a gibs.earthdata.nasa.gov pueden fallar (CORS/CSP); sirviéndolas
+# desde el propio backend las capas ambientales pintan en cualquier contexto.
+# El reintento por fecha de compuesto (GIBS publica con 1-3 días de latencia)
+# se hace aquí, una sola vez por tile.
+# --------------------------------------------------------------------------- #
+GIBS_3857: dict[str, dict[str, Any]] = {
+    "MODIS_Terra_Aerosol": {"tms": "GoogleMapsCompatible_Level6", "max_level": 6, "ext": "png"},
+    "OMPS_Aerosol_Index_PyroCumuloNimbus": {"tms": "GoogleMapsCompatible_Level6", "max_level": 6, "ext": "png"},
+    "MODIS_Terra_NDVI_8Day": {"tms": "GoogleMapsCompatible_Level9", "max_level": 9, "ext": "png"},
+    "MODIS_Terra_CorrectedReflectance_TrueColor": {"tms": "GoogleMapsCompatible_Level9", "max_level": 9, "ext": "jpg"},
+}
+_GIBS_TILE_CACHE: OrderedDict[str, tuple[float, bytes, str, str]] = OrderedDict()
+_GIBS_CACHE_BYTES = 0
+_GIBS_MAX_CACHE_BYTES = 64 * 1024 * 1024
+_GIBS_MAX_CACHE_ITEMS = 800
+
+# v0.9.4 — El compuesto diario TrueColor es JPEG sin canal alfa: las franjas sin
+# órbita del día llegan NEGRAS y tapan el globo ("hoyos" oscuros). Estas capas se
+# pueden pedir como .png: el proxy convierte el negro puro de relleno en
+# transparencia y el front apila 3 días, así los días anteriores rellenan los
+# huecos del compuesto más nuevo.
+GIBS_TRANSPARENT: set[str] = {"MODIS_Terra_CorrectedReflectance_TrueColor"}
+
+
+def _empty_gibs_png() -> bytes:
+    """A real transparent 256×256 image for low TrueColor zoom levels."""
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGBA", (256, 256), (0, 0, 0, 0)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+_GIBS_EMPTY_PNG = _empty_gibs_png()
+
+
+def _gibs_cache_get(key: str) -> tuple[bytes, str, str, int] | None:
+    """Return tile, media type, source date and remaining browser TTL."""
+    global _GIBS_CACHE_BYTES
+    entry = _GIBS_TILE_CACHE.get(key)
+    if entry is None:
+        return None
+    expires, body, media, source_day = entry
+    remaining = int(expires - time.monotonic())
+    if remaining <= 0:
+        _GIBS_TILE_CACHE.pop(key)
+        _GIBS_CACHE_BYTES -= len(body)
+        return None
+    _GIBS_TILE_CACHE.move_to_end(key)
+    return body, media, source_day, remaining
+
+
+def _gibs_cache_put(key: str, body: bytes, media: str, source_day: str, ttl: int) -> None:
+    """Bound cached PNGs by bytes as well as tile count."""
+    global _GIBS_CACHE_BYTES
+    old = _GIBS_TILE_CACHE.pop(key, None)
+    if old is not None:
+        _GIBS_CACHE_BYTES -= len(old[1])
+    if len(body) > _GIBS_MAX_CACHE_BYTES:
+        return
+    _GIBS_TILE_CACHE[key] = (time.monotonic() + ttl, body, media, source_day)
+    _GIBS_CACHE_BYTES += len(body)
+    while len(_GIBS_TILE_CACHE) > _GIBS_MAX_CACHE_ITEMS or _GIBS_CACHE_BYTES > _GIBS_MAX_CACHE_BYTES:
+        _, evicted = _GIBS_TILE_CACHE.popitem(last=False)
+        _GIBS_CACHE_BYTES -= len(evicted[1])
+
+
+def _gibs_tile_response(body: bytes, media: str, source_day: str, ttl: int, cache: str) -> Response:
+    return Response(
+        content=body,
+        media_type=media,
+        headers={
+            "Cache-Control": f"public, max-age={ttl}",
+            "X-GIBS-Date": source_day,
+            "X-GIBS-Cache": cache,
+        },
+    )
+
+
+def _transparentize_png(raw: bytes) -> bytes:
+    """Convierte el relleno negro puro de un tile JPEG de GIBS en alfa 0 y
+    SIEMPRE devuelve un PNG real.
+
+    IMPORTANTE: nunca se devuelven bytes JPEG etiquetados como image/png:
+    Cesium no los decodifica y el globo se queda clavado en tiles de baja
+    resolución (se veía "desenfocado"). La máscara va a velocidad C con
+    ImageChops/point, sin bucles de píxeles en Python."""
+    from PIL import Image, ImageChops, ImageFilter  # Pillow ya está en requirements.txt
+
+    im = Image.open(io.BytesIO(raw)).convert("RGB")
+    r, g, b = im.split()
+    mx = ImageChops.lighter(ImageChops.lighter(r, g), b)  # max(r,g,b) por píxel
+    if mx.getextrema()[0] < 12:  # hay negro de relleno → alfa 0 en esas zonas
+        core = mx.point(lambda value: 255 if value < 12 else 0)
+        # JPEG leaves dark antialias pixels around the pure-black orbit gap.
+        # Feather only within two pixels of that gap; genuinely dark terrain
+        # elsewhere retains full opacity.
+        edge = core.filter(ImageFilter.MaxFilter(5))
+        soft = mx.point(lambda value: 0 if value <= 12 else 255 if value >= 48 else round((value - 12) * 255 / 36))
+        alpha = Image.composite(soft, Image.new("L", im.size, 255), edge)
+        im = im.convert("RGBA")
+        im.putalpha(alpha)
+    out = io.BytesIO()
+    im.save(out, "PNG")
+    return out.getvalue()
+
+
+async def _gibs_exact_tile(layer_id: str, day: str, z: int, y: int, x: int, transparent: bool) -> tuple[bytes, str, int, str] | None:
+    """One exact WMTS date, shared by the tile proxy and 3-day composite.
+
+    None means no coverage. A network/provider failure raises HTTPException;
+    callers decide whether to fall back to other dates. Exact-date caching
+    prevents the composite and the legacy tile route from downloading twice.
+    """
+    cfg = GIBS_3857[layer_id]
+    # Keep exact-date entries separate from /tile aliases that may resolve to
+    # an older fallback date; the composite must never reuse a fallback as if
+    # it belonged to the requested exact day.
+    key = f"exact|{layer_id}|{day}|{z}|{y}|{x}" + ("|t" if transparent else "")
+    hit = _gibs_cache_get(key)
+    if hit is not None:
+        body, media, _source_day, ttl = hit
+        return body, media, ttl, "hit"
+
+    base = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best"
+    extension = cfg["ext"]
+    url = f"{base}/{layer_id}/default/{day}/{cfg['tms']}/{z}/{y}/{x}.{extension}"
+    try:
+        response = await asyncio.wait_for(app.state.gibs_client.get(url), timeout=12)
+    except (asyncio.TimeoutError, httpx.TimeoutException) as exc:
+        logger.warning("GIBS timeout for %s: %s", url, exc)
+        raise HTTPException(504, "NASA GIBS timed out for this tile") from exc
+    except httpx.HTTPError as exc:
+        logger.warning("GIBS request failed for %s: %s", url, exc)
+        raise HTTPException(502, "NASA GIBS failed to serve this tile") from exc
+    if response.status_code in (204, 404):
+        return None
+    if response.status_code != 200:
+        logger.warning("GIBS returned HTTP %s for %s", response.status_code, url)
+        raise HTTPException(502, "NASA GIBS failed to serve this tile")
+    expected_magic = b"\x89PNG\r\n\x1a\n" if extension == "png" else b"\xff\xd8\xff"
+    if not response.content.startswith(expected_magic):
+        logger.warning("GIBS returned a non-%s tile for %s", extension.upper(), url)
+        raise HTTPException(502, "NASA GIBS failed to serve this tile")
+
+    body = response.content
+    media = "image/png" if extension == "png" else "image/jpeg"
+    conversion_failed = False
+    if transparent:
+        try:
+            body = await asyncio.to_thread(_transparentize_png, body)
+            media = "image/png"
+        except Exception:
+            conversion_failed = True
+            # Do not advertise JPEG bytes as PNG: Cesium then stays blurry.
+            logger.exception("GIBS transparent PNG conversion failed for %s", url)
+    parsed = date.fromisoformat(day)
+    ttl = 60 if conversion_failed else 900 if parsed >= date.today() - timedelta(days=3) else 86400
+    _gibs_cache_put(key, body, media, day, ttl)
+    return body, media, ttl, "miss"
+
+
+@app.get("/api/gibs/tile/{layer_id}/{day}/{z}/{y}/{x}.{ext}")
+async def gibs_tile(layer_id: str, day: str, z: int, y: int, x: int, ext: str) -> Response:
+    cfg = GIBS_3857.get(layer_id)
+    want_transparent = ext == "png" and layer_id in GIBS_TRANSPARENT
+    if cfg is None or (ext != cfg["ext"] and not want_transparent):
+        raise HTTPException(404, "Unknown GIBS layer/extension")
+    try:
+        parsed = datetime.strptime(day, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise HTTPException(400, "date must use YYYY-MM-DD") from exc
+    if parsed > date.today() or parsed.year < 2000:
+        raise HTTPException(400, "date out of range")
+    if not (0 <= z <= cfg["max_level"] and 0 <= x < 2**z and 0 <= y < 2**z):
+        raise HTTPException(400, "tile coordinates out of range")
+    day = parsed.isoformat()
+
+    # Cesium must be allowed to request levels 0..4 before it can refine to
+    # TrueColor's useful levels. Returning transparent tiles keeps the sharp
+    # OSM basemap visible while higher-resolution GIBS tiles load.
+    if want_transparent and z < 5:
+        return Response(
+            content=_GIBS_EMPTY_PNG,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                "X-GIBS-LOD": "omitted-below-5",
+                "X-GIBS-Cache": "bypass",
+            },
+        )
+
+    cache_key = f"{layer_id}|{day}|{z}|{y}|{x}" + ("|t" if want_transparent else "")
+    hit = _gibs_cache_get(cache_key)
+    if hit is not None:
+        return _gibs_tile_response(*hit, cache="hit")
+
+    deadline = time.monotonic() + 25
+    for offset in range(5):  # fecha pedida y hasta cuatro días anteriores
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise HTTPException(504, "NASA GIBS timed out for this tile")
+        candidate = (parsed - timedelta(days=offset)).isoformat()
+        try:
+            result = await asyncio.wait_for(
+                _gibs_exact_tile(layer_id, candidate, z, y, x, want_transparent),
+                timeout=remaining,
+            )
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(504, "NASA GIBS timed out for this tile") from exc
+        if result is None:
+            continue
+        body, media, ttl, source_cache = result
+        if candidate != day:
+            # Alias the chosen older composite under the requested date.
+            _gibs_cache_put(cache_key, body, media, candidate, ttl)
+        return _gibs_tile_response(body, media, candidate, ttl, cache=source_cache)
+
+    raise HTTPException(404, "No NASA GIBS tile for this location and date")
+
+
+def _compose_truecolor_png(tiles_oldest_first: list[bytes]) -> bytes:
+    """Composite transparent TrueColor PNGs over one 256×256 tile."""
+    from PIL import Image
+
+    canvas = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
+    for payload in tiles_oldest_first:
+        with Image.open(io.BytesIO(payload)) as image:
+            if image.format != "PNG" or image.size != (256, 256):
+                raise ValueError("GIBS composite requires 256×256 PNG tiles")
+            canvas = Image.alpha_composite(canvas, image.convert("RGBA"))
+    output = io.BytesIO()
+    canvas.save(output, "PNG")
+    return output.getvalue()
+
+
+@app.get("/api/gibs/composite/{day}/{z}/{y}/{x}.png")
+async def gibs_truecolor_composite(day: str, z: int, y: int, x: int) -> Response:
+    """One rendered layer assembled from exactly three daily TrueColor dates."""
+    try:
+        parsed = datetime.strptime(day, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise HTTPException(400, "date must use YYYY-MM-DD") from exc
+    if parsed > date.today() or parsed.year < 2000:
+        raise HTTPException(400, "date out of range")
+    if not (0 <= z <= 9 and 0 <= x < 2**z and 0 <= y < 2**z):
+        raise HTTPException(400, "tile coordinates out of range")
+    day = parsed.isoformat()
+    if z < 5:
+        return Response(
+            content=_GIBS_EMPTY_PNG,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                "X-GIBS-LOD": "omitted-below-5",
+                "X-GIBS-Cache": "bypass",
+            },
+        )
+
+    key = f"composite|{day}|{z}|{y}|{x}"
+    hit = _gibs_cache_get(key)
+    if hit is not None:
+        body, _media, dates_used, ttl = hit
+        count = len(dates_used.split(","))
+        return Response(
+            content=body, media_type="image/png",
+            headers={"Cache-Control": f"public, max-age={ttl}", "X-GIBS-Dates": dates_used,
+                     "X-GIBS-Partial": str(count < 3).lower(), "X-GIBS-Cache": "hit"},
+        )
+
+    days = [(parsed - timedelta(days=offset)).isoformat() for offset in range(3)]
+    results = await asyncio.gather(
+        *(_gibs_exact_tile("MODIS_Terra_CorrectedReflectance_TrueColor", candidate, z, y, x, True)
+          for candidate in days),
+        return_exceptions=True,
+    )
+    available: list[tuple[str, bytes, int]] = []
+    faults: list[int] = []
+    for candidate, result in zip(days, results):
+        if isinstance(result, HTTPException):
+            faults.append(result.status_code)
+        elif isinstance(result, Exception):
+            logger.error("GIBS composite failed for %s: %s", candidate, result)
+            faults.append(502)
+        elif result is not None:
+            body, media, ttl, _cache = result
+            if media == "image/png":
+                available.append((candidate, body, ttl))
+            else:
+                # Conversion fallback is a valid JPEG for /tile, but an opaque
+                # JPEG would cover every older date in this composite.
+                faults.append(502)
+
+    if not available:
+        if 504 in faults:
+            raise HTTPException(504, "NASA GIBS timed out for the TrueColor composite")
+        if faults:
+            raise HTTPException(502, "NASA GIBS failed to serve the TrueColor composite")
+        raise HTTPException(404, "No NASA GIBS TrueColor tiles for these dates")
+
+    try:
+        body = await asyncio.to_thread(_compose_truecolor_png, [tile for _, tile, _ in reversed(available)])
+    except Exception as exc:
+        logger.exception("GIBS TrueColor composite could not be decoded")
+        raise HTTPException(502, "NASA GIBS TrueColor tiles could not be composited") from exc
+    dates_used = ",".join(candidate for candidate, _, _ in available)
+    partial = len(available) < 3
+    ttl = min((120 if partial else 86400), *(item_ttl for _, _, item_ttl in available))
+    _gibs_cache_put(key, body, "image/png", dates_used, ttl)
+    return Response(
+        content=body, media_type="image/png",
+        headers={"Cache-Control": f"public, max-age={ttl}", "X-GIBS-Dates": dates_used,
+                 "X-GIBS-Partial": str(partial).lower(), "X-GIBS-Cache": "miss"},
+    )
 
 
 @app.get("/api/environment/intelligence")
@@ -1355,11 +1718,12 @@ async def environment_intelligence(
 @app.get("/api/evolution/demo")
 def evolution_demo(region: str = Query("mexico", pattern="^(mexico|amazon)$"), days: int = Query(5, ge=3, le=10)) -> JSONResponse:
     frames = _evolution_demo_frames(region, days)
-    engine = _evolution_from_frames(frames, session=f"DEMO-{region.upper()}", min_points=2)
+    engine = _evolution_from_frames(frames, session=f"DEMO-{region.upper()}")
     scenario = EVOLUTION_SCENARIOS.get(region) or EVOLUTION_SCENARIOS["mexico"]
     return JSONResponse({
         "version": APP_VERSION,
         "mode": "evolution-demo",
+        "synthetic": True,
         "region": region,
         "region_label": scenario["label"],
         "camera": scenario["camera"],
@@ -1394,7 +1758,7 @@ def evolution_archive(
     frames = [f for f in frames if f["fires"]]
     if not frames:
         raise HTTPException(404, "No archived observations in that window.")
-    engine = _evolution_from_frames(frames, session="ARCHIVE", min_points=2)
+    engine = _evolution_from_frames(frames, session="ARCHIVE")
     return JSONResponse({
         "version": APP_VERSION,
         "mode": "evolution-archive",

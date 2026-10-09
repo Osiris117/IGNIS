@@ -1,0 +1,11 @@
+.git
+.DS_Store
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.env
+data/archive
+data/events
+*.zip
+*.patch

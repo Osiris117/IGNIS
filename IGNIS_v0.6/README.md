@@ -1,6 +1,15 @@
-# IGNIS v0.9.1 — Intelligence Analyst (UI/UX, modo claro y accesibilidad)
+# IGNIS v0.9.4 — Earth Fire Intelligence
 
 IGNIS is a cross-platform 3D wildfire/thermal-anomaly intelligence prototype built around NASA FIRMS MODIS/VIIRS observations. v0.9 adds the **Intelligence Analyst**: an explainable, bilingual (ES/EN) briefing per persistent event — every sentence bound to the measured figures that back it (citations with metric, value and source) — plus a **light/dark theme switch** and a **language switch** for the whole interface. It builds on v0.8 (drought percentiles from ERA5, vegetation/fuel from MODIS NDVI, smoke/aerosols from MODIS AOD + OMPS, switchable NASA GIBS layers), v0.7 (Fire Evolution Engine: persistent event IDs, lifecycle states, apparent drift, trails, explainable Event Confidence Score), v0.6 Earth Context Engine and the v0.5 DuckDB + Parquet archive.
+
+## v0.9.4 · Render y usabilidad
+
+- Las capas NASA GIBS usan teselas Web Mercator mediante un proxy del mismo origen. COLOR REAL combina tres días con transparencia en una sola capa para reducir el trabajo del navegador.
+- El globo usa un mapa base más nítido cuando hay conexión y vuelve al mapa local incluido cuando no la hay.
+- El render por software desactiva efectos costosos y puede recuperarse de errores de Cesium sin tapar los controles.
+- Las capas ambientales conservan su selección y la imagen anterior mientras cambia la fecha; se sincronizan al pausar la línea temporal y muestran su referencia. Reanudar conserva cámara y proveedores.
+- Los botones «?» explican cada sección al pasar el cursor o hacer clic, con teclado y en ES/EN. La demo está identificada como simulada y usa ubicaciones terrestres.
+- Causas, correcciones y pruebas: [FALLAS_Y_MEJORAS.md](FALLAS_Y_MEJORAS.md).
 
 ## v0.9.1 highlights
 
@@ -49,7 +58,7 @@ IGNIS is a cross-platform 3D wildfire/thermal-anomaly intelligence prototype bui
 - **Explainable Event Confidence** with per-component weights and printed evidence.
 - **Globe rendering**: evolution trails with growing alpha, per-state colors, pulsing markers.
 - **REPLAY LIFECYCLE**: cinematic camera replay from first signal to last observation.
-- **God's Eye HUD**: local Cesium SkyBox stars, atmosphere, FXAA + bloom, leader line + animated reticle, tracking banner, cursor lat/lon readout.
+- **God's Eye HUD**: local Cesium SkyBox stars, atmosphere, FXAA + bloom on hardware rendering (disabled in SwiftShader), leader line + animated reticle, tracking banner, cursor lat/lon readout.
 - **Real offline data**: bulk FIRMS CSVs (no MAP_KEY) can be imported and tracked locally (see `docs/OFFLINE_DEMO.md`).
 - New endpoints: `GET /api/evolution/demo`, `GET /api/evolution/archive`.
 
@@ -251,10 +260,6 @@ IGNIS_v0.6/
 
 ## Connectivity note
 
-**The browser UI is now fully offline**: CesiumJS 1.126 is vendored in `static/vendor/cesium/` and the globe uses the Natural Earth II imagery + SkyBox shipped with Cesium (no CDN requests). NASA FIRMS and Open-Meteo/CAMS remain backend-only dependencies; with a local archive imported, IGNIS runs disconnected end-to-end. See `docs/OFFLINE_DEMO.md`.
-
-## Next high-value milestone
-
-v0.8 should add **Environmental Intelligence**: vegetation/fuel context, drought indices, smoke/aerosol layers over the globe, and weather-driven risk context per persistent track. v0.9 should add the **IGNIS Intelligence Analyst**: data-grounded automatic narrative per event, with every sentence tied to the underlying numbers.
+CesiumJS 1.126 y el mapa Natural Earth II están incluidos en `static/vendor/cesium/`. Con internet, IGNIS puede usar teselas OpenStreetMap más nítidas y capas ambientales NASA GIBS. Sin conexión, el globo vuelve al mapa local; los datos demo y un archivo histórico ya importado siguen disponibles. Las consultas en vivo a NASA FIRMS y Open-Meteo/CAMS requieren conexión. Consulta `docs/OFFLINE_DEMO.md`.
 
 See `EARTH_CONTEXT_ENGINE.md`, `HISTORICAL_ENGINE.md`, and `HARMONIZATION.md` for methodology and caveats.

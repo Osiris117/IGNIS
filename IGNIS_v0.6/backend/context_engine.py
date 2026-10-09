@@ -153,6 +153,16 @@ def _mean(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 2) if values else None
 
 
+def _mean_angle(values: list[float]) -> float | None:
+    """FIX: la dirección del viento es circular; la media aritmética de 350° y 10°
+    daba 180° (sur) en lugar de 0° (norte). Media circular vía sen/cos."""
+    if not values:
+        return None
+    s = sum(math.sin(math.radians(v)) for v in values)
+    c = sum(math.cos(math.radians(v)) for v in values)
+    return round((math.degrees(math.atan2(s, c)) + 360.0) % 360.0, 2)
+
+
 def _safe_values(values: Any) -> list[float]:
     return [float(v) for v in (values or []) if v is not None]
 
@@ -251,7 +261,7 @@ async def fetch_weather_context(lat: float, lon: float, event_date: str, timeout
         "precipitation_sum_mm": round(sum(precip), 2) if precip else None,
         "wind_speed_mean_kmh": _mean(wind),
         "wind_speed_max_kmh": round(max(wind), 2) if wind else None,
-        "wind_direction_mean_deg": _mean(wind_dir),
+        "wind_direction_mean_deg": _mean_angle(wind_dir),
         "soil_moisture_mean": _mean(soil),
         "vapour_pressure_deficit_mean_kpa": _mean(vpd),
         "hours": len(keep),

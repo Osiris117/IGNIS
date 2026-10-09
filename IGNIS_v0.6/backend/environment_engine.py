@@ -23,6 +23,7 @@ Reglas del proyecto que se mantienen:
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
 import re
 import statistics
@@ -33,9 +34,12 @@ from typing import Any
 
 import httpx
 
+from backend.version import APP_VERSION
+
 GIBS = "https://gibs.earthdata.nasa.gov"
 GIBS_WMTS = f"{GIBS}/wmts/epsg4326/best"
 TIMEOUT = 20.0
+logger = logging.getLogger(__name__)
 
 # Catálogo de capas verificadas contra WMTSCapabilities (TMS por capa).
 LAYERS: dict[str, dict[str, Any]] = {
@@ -158,7 +162,8 @@ async def fetch_tile(client: httpx.AsyncClient, layer_key: str, day: str, lat: f
             # opacos, se sigue retrocediendo en el tiempo.
             if _tile_has_data(response.content):
                 return response.content, candidate
-        except Exception:
+        except httpx.HTTPError as exc:
+            logger.warning("GIBS analytical tile request failed for %s: %s", url, exc)
             continue
     return None, day
 
@@ -167,14 +172,15 @@ def _tile_has_data(payload: bytes, min_opaque: int = 16) -> bool:
     """¿El tile trae información real? (evita aceptar compuestos aún vacíos)."""
     try:
         from PIL import Image
-        import io as _io
 
-        image = Image.open(_io.BytesIO(payload)).convert("RGBA")
-        pixels = list(image.getdata())
-        opaque = sum(1 for _, _, _, alpha in pixels if alpha > 10)
+        image = Image.open(BytesIO(payload)).convert("RGBA")
+        # Pillow calculates the histogram in native code; converting every
+        # pixel to Python tuples stalled the API on each 256×256 tile.
+        opaque = sum(image.getchannel("A").histogram()[11:])
         return opaque >= min_opaque
-    except Exception:
-        return bool(payload)  # si no se puede analizar, confiar en el 200
+    except Exception as exc:
+        logger.warning("GIBS analytical tile could not be decoded: %s", exc)
+        return False
 
 
 def _freshness(sample: dict[str, Any], lang: str = "es") -> str:
@@ -248,8 +254,9 @@ async def fetch_colormap(client: httpx.AsyncClient, layer_key: str) -> list[tupl
                 continue
             if len(triple) == 3:
                 pairs.append((triple, value))  # type: ignore[arg-type]
-    except Exception:
-        pairs = []
+    except (httpx.HTTPError, ET.ParseError, ValueError) as exc:
+        logger.warning("GIBS colormap unavailable for %s: %s", url, exc)
+        return []
     _COLORMAP_CACHE[url] = pairs
     return pairs
 
@@ -348,6 +355,9 @@ LABELS: dict[str, dict[str, str]] = {
         "not_enough": "el archivo ERA5 no cubre suficientes años en ese punto",
         "not_enough_years": "sin años suficientes para el percentil {window}",
         "summary_pending": "contexto incompleto",
+        "pyro": "Índice PyroCb ≈ {value} (aerosoles absorbentes, típicos de humo)",
+        "pyro_none": "índice PyroCb no disponible ese día",
+        "aod_none": "sin dato de aerosoles para esa fecha",
     },
     "en": {
         "EXCEPTIONAL": "exceptional drought (D4)", "EXTREME": "extreme drought (D3)",
@@ -373,6 +383,9 @@ LABELS: dict[str, dict[str, str]] = {
         "not_enough": "ERA5 archive does not cover enough years at that point",
         "not_enough_years": "not enough years for the {window} percentile",
         "summary_pending": "incomplete context",
+        "pyro": "PyroCb index ≈ {value} (absorbing aerosols, typical of smoke)",
+        "pyro_none": "PyroCb index not available that day",
+        "aod_none": "no aerosol data for that date",
     },
 }
 LAYER_WORDS = {"aerosol": {"es": "AOD", "en": "AOD"}, "ndvi": {"es": "NDVI", "en": "NDVI"},
@@ -552,8 +565,9 @@ async def sample_layer(layer_key: str, lat: float, lon: float, day: str, lang: s
         }
     x, y, fx, fy = tile_for(lat, lon, int(cfg["level"]))
     try:
-        r, g, b, a, valid = _sample_pixel(tile_bytes, fx, fy)
+        r, g, b, a, valid = await asyncio.to_thread(_sample_pixel, tile_bytes, fx, fy)
     except Exception as exc:
+        logger.warning("GIBS pixel sampling failed for %s: %s", layer_key, exc)
         return {"available": False, "reason": L(lang, "page_fail", error=exc), "provider": "NASA GIBS"}
     if valid == 0 or a < 10:
         return {
@@ -618,9 +632,9 @@ async def smoke_context(lat: float, lon: float, day: str, lang: str = "es") -> d
             evidence=[
                 f"AOD ≈ {float(aod_sample['value']):.2f} → {description}",
                 (
-                    f"Índice PyroCb ≈ {float(pyro_sample['value']):.2f} (aerosoles absorbentes, típicos de humo)"
+                    L(lang, "pyro", value=f"{float(pyro_sample['value']):.2f}")
                     if pyro_sample.get("available") and pyro_sample.get("value") is not None
-                    else "índice PyroCb no disponible ese día"
+                    else L(lang, "pyro_none")
                 ),
             ],
             caveat=(
@@ -629,7 +643,7 @@ async def smoke_context(lat: float, lon: float, day: str, lang: str = "es") -> d
             ),
         )
     else:
-        out.update(available=False, reason="sin dato de aerosoles para esa fecha", provider="NASA GIBS · MODIS AOD + OMPS PyroCb")
+        out.update(available=False, reason=L(lang, "aod_none"), provider="NASA GIBS · MODIS AOD + OMPS PyroCb")
     return out
 
 
@@ -669,7 +683,7 @@ async def build_environment_intelligence(lat: float, lon: float, iso_date: str, 
     ]
 
     return {
-        "version": "0.9.1",
+        "version": APP_VERSION,
         "engine": "environmental-intelligence",
         "lat": round(lat, 5),
         "lon": round(lon, 5),

@@ -36,7 +36,9 @@
       btn.classList.toggle('on', theme === 'light');
       btn.innerHTML = theme === 'light' ? '<svg class="ico theme-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><g stroke-linecap="round"><path d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M18.7 5.3l-1.8 1.8M5.4 18.7l1.8-1.8"/></g></svg>' : '<svg class="ico theme-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.2A8.4 8.4 0 1 1 9.8 4a6.8 6.8 0 0 0 10.2 10.2z"/></svg>';   // icono SVG, no emoji
       btn.setAttribute('aria-pressed', theme === 'light' ? 'true' : 'false');
-      btn.setAttribute('aria-label', theme === 'light' ? 'Modo oscuro' : 'Modo claro');
+      btn.setAttribute('aria-label', theme === 'light'
+        ? (I18N.lang === 'es' ? 'Modo oscuro' : 'Dark mode')
+        : (I18N.lang === 'es' ? 'Modo claro' : 'Light mode'));
       btn.title = theme === 'light'
         ? (I18N.lang === 'es' ? 'Cambiar a modo oscuro' : 'Switch to dark mode')
         : (I18N.lang === 'es' ? 'Cambiar a modo claro' : 'Switch to light mode');
@@ -65,7 +67,13 @@
     document.querySelectorAll('.lang-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.lang === I18N.lang);
     });
-    applyTheme(theme); // refresca el tooltip del botón de tema
+    const btn = $('themeToggle');
+    if (btn) {
+      btn.setAttribute('aria-label', theme === 'light' ? (I18N.lang === 'es' ? 'Modo oscuro' : 'Dark mode') : (I18N.lang === 'es' ? 'Modo claro' : 'Light mode'));
+      btn.title = theme === 'light'
+        ? (I18N.lang === 'es' ? 'Cambiar a modo oscuro' : 'Switch to dark mode')
+        : (I18N.lang === 'es' ? 'Cambiar a modo claro' : 'Switch to light mode');
+    }
   }
 
   document.querySelectorAll('.lang-btn').forEach(btn => {
@@ -73,9 +81,9 @@
   });
 
   I18N.onChange(() => {
-    // Al cambiar de idioma, los textos dinámicos ya pintados se vuelven a generar.
-    if (window.IGNIS_RERENDER) { try { window.IGNIS_RERENDER(); } catch (e) {} }
-    if (window.IGNIS_ANALYST && window.IGNIS_ANALYST.lastTrack) {
+    // app.js repinta el mapa y sus etiquetas; aquí solo se actualiza el informe.
+    if (window.IGNIS_ANALYST && window.IGNIS_ANALYST.lastTrack &&
+        $('analystPanel') && !$('analystPanel').classList.contains('hidden')) {
       window.IGNIS_ANALYST.load(window.IGNIS_ANALYST.lastTrack, { silent: true });
     }
   });
@@ -152,6 +160,7 @@
 
   const Analyst = {
     lastTrack: null,
+    requestToken: 0,
     open() {
       if ($('analystPanel')) $('analystPanel').classList.remove('hidden');
       document.body.classList.add('analyst-open');   // el banner de seguimiento se aparta
@@ -164,7 +173,9 @@
       if (!track || !track.id) return;
       Analyst.lastTrack = track;
       const silent = opts && opts.silent;
-      Analyst.open();
+      const token = ++Analyst.requestToken;
+      const language = I18N.lang;
+      if (!silent) Analyst.open();
       if (!silent) {
         $('analystTrack').textContent = track.id;
         $('analystHeadline').textContent = I18N.t('analyst_loading');
@@ -175,12 +186,14 @@
       }
       try {
         const data = await fetchBriefing(track);
+        if (token !== Analyst.requestToken || language !== I18N.lang) return;
         renderBriefing(data);
         const citations = (data.sentences || []).reduce((n, s) => n + (s.citations || []).filter(c => c.value !== null && c.value !== undefined).length, 0);
         if (!silent && window.showToast) {
           window.showToast(I18N.t('toast_briefing_done', (data.sentences || []).length, citations), 4600);
         }
       } catch (error) {
+        if (token !== Analyst.requestToken || language !== I18N.lang) return;
         $('analystHeadline').textContent = I18N.t('No briefing data') + ' — ' + error.message;
         if (!silent && window.showToast) window.showToast(I18N.t('toast_briefing_fail', error.message), 6000);
       }

@@ -130,7 +130,8 @@ def main() -> None:
     health_url = f"{url}/api/health"
 
     print("\n===============================================")
-    print("  IGNIS v0.6 — Earth Context Engine")
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    print(f"  IGNIS v{version} — Earth Fire Intelligence")
     print("===============================================")
     print(f"  OS      : {platform.system()} {platform.release()}")
     print(f"  Python  : {platform.python_version()}")

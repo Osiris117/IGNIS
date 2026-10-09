@@ -442,3 +442,74 @@ html[data-theme="light"] .cal-cell.level-very-high{background:rgba(var(--red-rgb
 html[data-theme="light"] .cal-cell.level-extreme{background:rgba(var(--red-rgb),.48);box-shadow:inset 0 0 0 1.5px rgba(var(--red-rgb),.80)}
 html[data-theme="light"] .cal-cell span{opacity:.85}   /* contadores de 6px legibles (AA) */
 html[data-theme="light"] .calendar-scroll{background:rgba(var(--inset-rgb),.55)}
+
+/* ===== v0.9.3 · modo rendimiento (renderer por software detectado) =====
+   backdrop-filter sobre un canvas WebGL redibujado a 60 fps obliga a re-desenfocar
+   toda la pantalla en cada cuadro → la UI entera con delay. Sin GPU real se
+   sustituye por un fondo casi opaco y se apagan scanline/viñeta animadas. */
+body.perf-soft .glass,body.perf-soft #detailEmpty{backdrop-filter:none;-webkit-backdrop-filter:none}
+body.perf-soft .glass{background:linear-gradient(135deg,rgba(var(--surface-a-rgb),.97),rgba(var(--surface-b-rgb),.95))}
+body.perf-soft .scanline{display:none}
+body.perf-soft .vignette{display:none}
+body.perf-soft .tb-dot{animation:none}
+
+/* v0.9.3: el panel de error nativo de Cesium es modal y bloquea toda la UI;
+   IGNIS muestra su propio aviso (.render-alert) en su lugar. */
+.cesium-widget-errorPanel{display:none!important}
+
+/* v0.9.4 — el anillo de foco quedaba "pegado" en chips/botones tras el click y
+   se veía como un render extraño; solo debe mostrarse con teclado. */
+button:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+input:focus:not(:focus-visible){outline:none;box-shadow:none;}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent,#7dffa8);outline-offset:2px;}
+
+/* Contextual help: one shared surface stays clear of panel clipping. */
+.help-button{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;min-width:24px;flex:0 0 24px;padding:0;border:1px solid rgba(var(--accent-rgb),.45);border-radius:50%;background:rgba(var(--accent-rgb),.06);color:var(--accent);font:800 13px ui-sans-serif,system-ui,sans-serif;line-height:1;letter-spacing:0;cursor:pointer;vertical-align:middle;touch-action:manipulation}
+.help-button:hover,.help-button[aria-expanded="true"]{background:rgba(var(--accent-rgb),.16);border-color:var(--accent)}
+.help-heading{display:flex;align-items:center;gap:7px;white-space:normal;line-height:1.4}
+.help-heading>.help-button{margin-left:auto}
+.section-title.help-heading span{margin-right:0}
+.section-title.help-heading .env-hint{margin-left:auto;flex-shrink:0}
+.help-label-row{display:flex;align-items:center;gap:7px;margin:12px 0 7px;min-width:0}
+.help-label-row>.field-label{flex:1;margin:0;line-height:1.4}
+.help-label-row>.toggle-row{flex:1;min-width:0}
+.help-label-row:has(>.toggle-row){margin:0;min-height:30px}
+.help-control-row{display:flex;align-items:center;gap:5px;min-width:0}
+.help-control-row>button:first-child{flex:1;min-width:0}
+.help-action-row{margin-bottom:9px}
+.help-action-row>.primary,.help-action-row>.secondary{margin-bottom:0}
+.help-control-row>.tiny.full{margin-top:0}
+.help-control-row:has(>.tiny.full){margin-top:8px}
+.help-segment-row{gap:1px}
+.help-segment-row .seg{height:100%;min-height:36px;white-space:normal;line-height:1.3;padding:4px 2px;letter-spacing:.04em}
+.help-segment-row>.help-button{margin-right:2px}
+.env-toggle-grid .help-control-row{gap:3px}
+.env-toggle-grid .env-chip{font-size:8px;letter-spacing:.035em;white-space:normal;line-height:1.2;padding:3px}
+.metric.help-heading{position:relative;display:flex;align-items:flex-start;gap:2px;padding-right:27px;white-space:nowrap;line-height:normal}
+.metric .metric-help{position:absolute;right:0;top:1px}
+.timeline.help-heading{display:grid;line-height:normal;gap:9px}
+.timeline .timeline-help{position:absolute;right:9px;top:-12px;margin:0;background:var(--surface-header)}
+.detail-card dt.help-heading{font-size:7px;letter-spacing:.09em;max-width:65%}
+.detail-card dt.help-heading>.help-button{width:24px;height:24px;margin-left:0}
+.confidence-head.help-heading{display:flex}
+.confidence-head.help-heading>strong{margin-left:auto}
+.confidence-head.help-heading>.help-button{margin-left:0}
+.calendar-head h2.help-heading,.archive-head h2.help-heading{justify-content:flex-start;font-size:20px}
+.calendar-head h2.help-heading>.help-button,.archive-head h2.help-heading>.help-button{margin-left:0}
+.help-popover{position:fixed;z-index:50;width:min(350px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:15px 16px;border:1px solid rgba(var(--accent-rgb),.42);border-radius:9px;background:var(--input-bg);box-shadow:0 12px 38px rgba(var(--shadow-rgb),.38);color:var(--text-2);font:400 12px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:0;overscroll-behavior:contain}
+.help-popover[hidden]{display:none}
+.help-popover-head{display:flex;align-items:flex-start;gap:12px}
+.help-popover-head strong{font-size:13px;color:var(--text-strong);line-height:1.5;padding-top:2px}
+.help-close{display:flex;align-items:center;justify-content:center;flex:0 0 28px;width:28px;height:28px;margin:-4px -6px 0 auto;padding:0;border:1px solid var(--line);border-radius:50%;background:transparent;color:var(--text-3);font:400 21px/1 system-ui,sans-serif;cursor:pointer}
+.help-close:hover{color:var(--accent);border-color:var(--accent)}
+.help-popover p{margin:8px 0 0}
+.data-origin-note,.env-layer-status{font-size:9px;line-height:1.55;color:var(--text-3)}
+.data-origin-note:empty,.env-layer-status:empty{display:none}
+.data-origin-note{margin:0 0 14px;padding:9px 10px;border-left:2px solid var(--yellow);background:rgba(var(--yellow-rgb),.06)}
+.env-layer-status{margin:4px 0 8px;color:var(--accent2)}
+.env-chip.selected:not(.active):not(.failed){border-color:var(--accent2);color:var(--accent2);box-shadow:inset 0 -2px var(--accent2)}
+.env-chip.selected.failed{box-shadow:inset 0 -2px var(--accent2)}
+.env-chip.selected.loading{opacity:.8}
+@media(max-width:1080px){.top-metrics .metric.help-heading{display:none}}
+@media(max-width:760px){.help-popover{font-size:13px}.timeline .timeline-help{right:5px;top:-12px}}
